@@ -23,7 +23,7 @@ if repo_root is None:
     # fallback to two levels up
     repo_root = this_file.parents[2]
 
-DTM_PATH = repo_root / "data" / "dtm" / "morin_heights_dtm.tif"
+DTM_PATH = repo_root / "data" / "dtm" / "morin_heights_dtm_slope.tif"
 REPROJECT_SHAPE = (800, 800)  # pixels for web overlay
 
 app = FastAPI()

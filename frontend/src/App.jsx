@@ -104,7 +104,14 @@ function App() {
         {/* ESRI Vector Tile Layer */}
         {/* <ESRIVectorLayer /> */}
         {/* DTM GeoTIFF Layer */}
-        <DTMGeoTIFFLayer />
+        {/* <DTMGeoTIFFLayer />*/}
+        <TileLayer
+          url="http://localhost:8000/cog/tiles/WebMercatorQuad/{z}/{x}/{y}?url=/home/sjjohnst/climbing-detection/data/dtm/laurentides_dtm_cog.tif&algorithm=slope&colormap_name=viridis&rescale=0,100"
+          attribution="Laurentides DTM Slope via Titiler"
+          maxZoom={22}
+          maxNativeZoom={14}
+          opacity={0.9}
+        />
         <BoulderPinsLayer />
       </MapContainer>
     </div>
