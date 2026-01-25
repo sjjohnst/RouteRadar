@@ -7,11 +7,7 @@
 </head>
 <body>
     <div id="map"></div>
-    <div id="controls">
-        <h1>Welcome to RouteRadar</h1>
-    </div>
-    <script type="module" src="/main.js"></script>
-</body>
+</div>
 <div id="controls">
     <h1>Welcome to RouteRadar</h1>
     <label>
@@ -24,5 +20,39 @@
         <input type="range" id="hrdem-opacity" min="0" max="1" step="0.01" value="0.7">
         <span id="opacity-value">0.7</span>
     </label>
+    <hr>
+    <h2>COG Layer Controls</h2>
+    <label>
+        <input type="checkbox" id="toggle-cog" checked>
+        Show COG Layer
+    </label>
+    <br>
+    <label>
+        COG Opacity:
+        <input type="range" id="cog-opacity" min="0" max="1" step="0.01" value="0.8">
+        <span id="cog-opacity-value">0.8</span>
+    </label>
+    <br>
+    <label>
+        Colormap:
+        <select id="cog-colormap">
+            <option value="">None (default)</option>
+            <option value="viridis">Viridis</option>
+            <option value="plasma">Plasma</option>
+            <option value="magma">Magma</option>
+            <option value="inferno">Inferno</option>
+            <option value="cividis">Cividis</option>
+            <option value="terrain">Terrain</option>
+            <option value="gray">Gray</option>
+        </select>
+    </label>
+    <br>
+    <label>
+        Rescale:
+        <input type="text" id="cog-rescale" value="100,600" size="10" placeholder="min,max">
+        <button id="apply-cog-params">Apply</button>
+    </label>
 </div>
+<script type="module" src="/main.js"></script>
+</body>
 </html>

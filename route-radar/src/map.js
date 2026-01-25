@@ -32,10 +32,26 @@ export function buildHRDEMWmsUrl(zFactor = 5, rescale = null) {
     return url;
 }
 
+// Export a function to build the COG tile URL for Titiler
+export function buildCogTileUrl({colormap = 'cividis', rescale = '100,600'} = {}) {
+    let url = 'http://localhost:8080/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=/cogs/laurentides_merged.tif';
+    if (rescale) url += `&rescale=${encodeURIComponent(rescale)}`;
+    if (colormap) url += `&colormap_name=${encodeURIComponent(colormap)}`;
+    return url;
+}
+
 export function initMap() {
     const quebecImageryUrl = "https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue/Imagerie_GQ/default/GoogleMapsCompatibleExt2:epsg:3857/{z}/{y}/{x}.jpg";
     const cartoLabelsUrl = "https://basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png";
-    const cogTileUrl = "http://localhost:8080/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=/cogs/val_david_merged.tif&rescale=100,600";
+    const cogTileUrl = buildCogTileUrl({});
+    // Bounds from laurentides.geojson polygon
+    // [[-74.30994776313827, 46.07484617926616], [-74.30994776313827, 45.85327435249255], [-74.05654223402449, 45.85327435249255], [-74.05654223402449, 46.07484617926616], [-74.30994776313827, 46.07484617926616]]
+    const laurentidesBounds = [
+        -74.30994776313827, // minX (west)
+        45.85327435249255,  // minY (south)
+        -74.05654223402449, // maxX (east)
+        46.07484617926616   // maxY (north)
+    ];
 
     // Convert AOI bounds from EPSG:4326 (lng/lat) to EPSG:3857 (Web Mercator)
     function lngLatTo3857(lng, lat) {
@@ -67,11 +83,19 @@ export function initMap() {
                     type: 'raster',
                     tiles: [cogTileUrl],
                     tileSize: 256,
-                    bounds: [-74.21, 45.99, -74.14, 46.04]
+                    bounds: laurentidesBounds
                 }
             },
             layers: [
                 { id: 'base-imagery', type: 'raster', source: 'quebec-imagery' },
+                { 
+                    id: 'local-cog-layer',
+                    type: 'raster',
+                    source: 'local-cog',
+                    paint: { 
+                        'raster-opacity': 0.8 
+                    } 
+                },
                 {
                     id: 'hrdem-wms-layer',
                     type: 'raster',
@@ -80,7 +104,6 @@ export function initMap() {
                         'raster-opacity': 0.7,
                     }
                 },
-                { id: 'local-cog-layer', type: 'raster', source: 'local-cog', paint: { 'raster-opacity': 0.8 } },
                 { id: 'labels-layer', type: 'raster', source: 'map-labels' },
 
             ]
