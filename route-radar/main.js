@@ -1,6 +1,5 @@
 import './style.css'
-import maplibregl from 'maplibre-gl';
-import { initMap, buildHRDEMWmsUrl } from './src/map.js'
+import { initMap } from './src/map.js'
 
 // Initialize the map when the page loads
 const map = initMap();
@@ -9,8 +8,6 @@ const map = initMap();
 const toggle = document.getElementById('toggle-hrdem');
 const opacitySlider = document.getElementById('hrdem-opacity');
 const opacityValue = document.getElementById('opacity-value');
-const slopeMinInput = document.getElementById('hrdem-slope-min');
-const slopeMaxInput = document.getElementById('hrdem-slope-max');
 
 toggle.addEventListener('change', () => {
     map.setLayoutProperty(
