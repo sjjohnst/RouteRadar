@@ -1,13 +1,27 @@
 import './style.css'
-import { initMap } from './src/map.js'
+import maplibregl from 'maplibre-gl';
+import { initMap, buildHRDEMWmsUrl } from './src/map.js'
 
 // Initialize the map when the page loads
 const map = initMap();
 
-// Example: Listen for a click to "drop a pin" (we'll save this to Supabase later!)
-map.on('click', (e) => {
-    console.log(`Pin dropped at: ${e.lngLat}`);
-    new maplibregl.Marker()
-        .setLngLat(e.lngLat)
-        .addTo(map);
+// --- HRDEM Layer Controls ---
+const toggle = document.getElementById('toggle-hrdem');
+const opacitySlider = document.getElementById('hrdem-opacity');
+const opacityValue = document.getElementById('opacity-value');
+const slopeMinInput = document.getElementById('hrdem-slope-min');
+const slopeMaxInput = document.getElementById('hrdem-slope-max');
+
+toggle.addEventListener('change', () => {
+    map.setLayoutProperty(
+        'hrdem-wms-layer',
+        'visibility',
+        toggle.checked ? 'visible' : 'none'
+    );
+});
+
+opacitySlider.addEventListener('input', () => {
+    const value = parseFloat(opacitySlider.value);
+    opacityValue.textContent = value.toFixed(2);
+    map.setPaintProperty('hrdem-wms-layer', 'raster-opacity', value);
 });
