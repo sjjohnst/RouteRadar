@@ -1,137 +1,127 @@
-"""
-This script extracts DTM data over an input AOI defined in geojson format 
-and saves it as a SINGLE Cloud Optimized GeoTIFF (COG).
-Source: https://datacube.services.geo.ca/stac/api/search?collections=hrdem-lidar
-"""
-
-import os
 import json
-import rioxarray as rxr
-import xarray as xr
+import os
+import subprocess
 import numpy as np
-from pystac_client import Client
-from argparse import ArgumentParser
+from shapely.geometry import shape, mapping, box
+from pystac_client import Client as StacClient
+import pyproj
+from pyproj import Transformer
 
 class DTMIngestor:
     """
-    The DTMIngestor class handles connection to the STAC API and extracts 
+    The DTMIngestor class handles connection to the STAC API and extracts
     merged DTM data over a specified Area of Interest (AOI).
     """
-    def __init__(self, stac_api_url: str):
-        # Connect to the STAC API
-        self.client = Client.open(stac_api_url)
-        # Subset to the DTM collection (hrdem-mosaic-1m)
-        self.collection = ["hrdem-mosaic-1m"]
 
-    def extract_dtm(self, aoi_geojson: str) -> xr.DataArray:
+    def __init__(self, stac_api: str, geojson_path: str, output_dir: str, tile_size_m: int):
+        self.output_dir = output_dir
+        self.tile_size_m = tile_size_m
+        os.makedirs(self.output_dir, exist_ok=True)
+        
+        # Connect to the STAC API
+        self.client = StacClient.open(stac_api)
+        
+        # Load AOI geometry
+        self.aoi_geom = self.get_aoi_geometry(geojson_path)
+        
+        # Locate the asset url for the DTM mosaic
+        self.items = self.query_stac_items(self.aoi_geom.bounds)
+        if not self.items:
+            raise ValueError("No items found for the given AOI.")
+
+        # 2. Collect all DTM asset URLs
+        # Prepend /vsicurl/ to each
+        self.mosaic_urls = [f"/vsicurl/{item.assets['dtm'].href}" for item in self.items]
+        
+        print(f"Found {len(self.items)} STAC items intersecting your AOI.")
+        for item in self.items:
+            print(f" - Item: {item.id}")
+
+    def create_tiles(self):       
+        # Reproject AOI from EPSG:4326 to EPSG:3979
+        transformer = Transformer.from_crs("EPSG:4326", "EPSG:3979", always_xy=True)
+        projected_coords = [transformer.transform(lon, lat) for lon, lat in self.aoi_geom.exterior.coords]
+        projected_aoi = shape({'type': 'Polygon', 'coordinates': [projected_coords]})
+        # print("AOI reprojected to EPSG:3979 for tiling.")
+        
+        minx, miny, maxx, maxy = projected_aoi.bounds
+
+        # Generate Grid
+        cols = list(np.arange(minx, maxx, self.tile_size_m))
+        rows = list(np.arange(miny, maxy, self.tile_size_m))
+        
+        print(f"Creating a grid of {len(cols)} x {len(rows)} tiles...")
+        
+        tile_count = 0
+        for x in cols:
+            for y in rows:
+                # Define tile bounding box
+                tile_bbox = [x, y, x + self.tile_size_m, y + self.tile_size_m]
+                
+                # Check intersection with AOI
+                tile_polygon = box(*tile_bbox)
+                if not projected_aoi.intersects(tile_polygon):
+                    print(f"Skipping tile at {tile_bbox}, no intersection with AOI.")
+                    continue
+                    
+                self.download_tile(tile_bbox, tile_count)
+                tile_count += 1
+                break # Remove this break to process all tiles - DEBUGGING ONLY
+            break # Remove this break to process all tiles - DEBUGGING ONLY
+
+    def query_stac_items(self, bbox):
         """
-        Extract DTM data over the specified AOI, merging all intersecting STAC items
-        into a single raster.
+        Query the STAC API for items intersecting the given bounding box.
         
         Args:
-            aoi_geojson (str): Path to the geojson file defining the AOI.
-        Returns:
-            dtm_raster (xr.DataArray): The extracted DTM data as a raster.
+            bbox (list): Bounding box [minx, miny, maxx, maxy] in EPSG:4326.
         """
-        aoi_geometry = self._prepare_aoi_geometry(aoi_geojson)
-        items = self._query_aoi(aoi_geometry)
-        
-        if not items:
-            raise ValueError("No STAC items found for the given AOI.")
-
-        print(f"Found {len(items)} source tiles covering AOI. Merging...")
-        
-        dtm_arrays = [self._extract_dtm_from_item(item, aoi_geometry) for item in items]
-        
-        if len(dtm_arrays) > 1:
-            dtm_raster = rxr.merge.merge_arrays(dtm_arrays)
-        else:
-            dtm_raster = dtm_arrays[0]
-            
-        # Reproject to Web Mercator (EPSG:3857) for web mapping compatibility
-        print("Reprojecting to EPSG:3857...")
-        dtm_raster_3857 = dtm_raster.rio.reproject("EPSG:3857")
-        
-        return dtm_raster_3857
-
-    def _prepare_aoi_geometry(self, aoi_geojson: str) -> dict:
-        """Load the AOI geojson file and extract the geometry."""
-        with open(aoi_geojson, 'r') as f:
-            aoi_data = json.load(f)
-        return aoi_data['geometry']
-    
-    def _query_aoi(self, aoi_geometry: dict) -> list:
-        """Given an AOI geometry, query the STAC API for DTM data."""
-        search_results = self.client.search(
-            collections=self.collection,
-            intersects=aoi_geometry,
+        search = self.client.search(
+            collections=["hrdem-mosaic-1m"],
+            bbox=bbox,
+            limit=10
         )
-        items = list(search_results.items())
+        items = list(search.get_items())
         return items
+    
+    @staticmethod
+    def get_aoi_geometry(geojson_path):
+        with open(geojson_path, 'r') as f:
+            aoi_data = json.load(f)
+        return shape(aoi_data['geometry'] if 'geometry' in aoi_data else aoi_data)
 
-    def _extract_dtm_from_item(self, item, aoi_geometry: dict) -> xr.DataArray:
-        """Extract the DTM data from a single STAC item, clipped to the AOI."""
-        dtm_asset = item.assets['dtm']
-        dtm_url = dtm_asset.href
+    def download_tile(self, bbox, tile_id):
+        # bbox is [minx, miny, maxx, maxy] in EPSG:3979
+        output_file = os.path.join(self.output_dir, f"dtm_tile_{tile_id}.tif")
         
-        # Load lazily with chunks
-        dtm_data = rxr.open_rasterio(dtm_url, chunks=True)
-
-        coords = np.array(aoi_geometry["coordinates"][0])
-        bbox = [coords[:,0].min(), coords[:,1].min(), coords[:,0].max(), coords[:,1].max()]
-        crs = "EPSG:4326"
-
-        # Clip to bounding box first (efficient)
-        dtm_clipped = dtm_data.rio.clip_box(
-            minx=bbox[0], miny=bbox[1],
-            maxx=bbox[2], maxy=bbox[3],
-            crs=crs
-        )
+        if os.path.exists(output_file):
+            print(f"Tile {tile_id} already exists, skipping...")
+            return
         
-        # Precise clip to polygon geometry
-        dtm_clipped = dtm_clipped.rio.clip([aoi_geometry], crs=crs, drop=True, invert=False)
-        
-        return dtm_clipped
-
+        cmd = [
+            "gdalwarp",
+            "-multi", "-wo", "NUM_THREADS=ALL_CPUS",
+            "-wm", "1024", 
+            "--config", "GDAL_CACHEMAX", "2048",
+            "--config", "GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR",
+            "--config", "CPL_VSIL_CURL_ALLOWED_EXTENSIONS", ".tif",
+            "-te", str(bbox[0]), str(bbox[1]), str(bbox[2]), str(bbox[3]),
+            "-of", "COG",
+            "-wo", "NUM_THREADS=ALL_CPUS", # Use all available cores
+            "-co", "COMPRESS=DEFLATE",     # Lossless compression
+            "-co", "PREDICTOR=2",          # Better compression for continuous data
+            "-co", "NUM_THREADS=ALL_CPUS", # Parallelize the creation of the COG
+            *self.mosaic_urls,
+            output_file
+        ]
+        print(f"Slicing tile {tile_id} from remote mosaic...")
+        subprocess.run(cmd, check=True)
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description="Extract single merged DTM COG over an AOI.")
-    parser.add_argument("--aoi", type=str, required=True, help="Path to the AOI geojson file")
-    args = parser.parse_args()
-
-    aoi_geojson_path = args.aoi
-    stac_api_url = "https://datacube.services.geo.ca/stac/api/"
-
-    dtm_ingestor = DTMIngestor(stac_api_url)
-
-    output_dir = "data/dtm_cog/"
-    os.makedirs(output_dir, exist_ok=True)
+    aoi_path = "./data/aoi/big_laurentides.geojson"
+    output_dir = "./data/raw_tiles/"
+    api_url = "https://datacube.services.geo.ca/stac/api/"
+    tile_size_m = 15000  # Tile size in meters
     
-    # Construct output filename based on input name
-    base_name = os.path.splitext(os.path.basename(aoi_geojson_path))[0]
-    output_path = os.path.join(output_dir, f"{base_name}_merged.tif")
-
-    try:
-        print(f"Starting extraction for {base_name}...")
-        
-        # 1. Extract and Reproject
-        final_raster = dtm_ingestor.extract_dtm(aoi_geojson_path)
-        
-        print(f"Saving to {output_path}...")
-        
-        # 2. Save as Cloud Optimized GeoTIFF
-        final_raster.rio.to_raster(
-            output_path,
-            driver="COG",
-            compress="deflate",
-            predictor=2, # Optimized for floating point data (DEMs)
-            blocksize=512,
-            overview_resampling="nearest",
-            bigtiff="IF_NEEDED", # Handles files > 4GB automatically
-            num_threads="ALL_CPUS"
-        )
-        
-        print(f"Success! COG saved at: {output_path}")
-
-    except Exception as e:
-        print(f"Error during processing: {e}")
+    dtm_ingestor = DTMIngestor(stac_api=api_url, geojson_path=aoi_path, output_dir=output_dir, tile_size_m=tile_size_m)
+    dtm_ingestor.create_tiles()
