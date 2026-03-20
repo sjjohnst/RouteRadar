@@ -1,0 +1,28 @@
+services:
+  backend:
+    container_name: routeradar-titiler
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      TITILER_CORS_ORIGINS: '["*"]'
+      WEB_CONCURRENCY: 1
+      GDAL_CACHEMAX: 2048
+      AWS_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      AWS_S3_ENDPOINT_URL: ${R2_S3_ENDPOINT}
+      AWS_S3_ENDPOINT: ${R2_S3_ENDPOINT}
+      AWS_REGION: us-east-1
+      AWS_VIRTUAL_HOSTING: "FALSE"
+      AWS_HTTPS: "TRUE"
+      R2_BUCKET: ${R2_BUCKET}
+    restart: "no"
+
+  frontend:
+    container_name: routeradar-frontend
+    build: ./frontend
+    ports:
+      - "5326:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

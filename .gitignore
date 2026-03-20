@@ -1,0 +1,29 @@
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Secrets
+.env
+
+# Logs
+logs/
+*.log
+
+# Editor
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# Data
+data/
+
+# Misc
+experiments/

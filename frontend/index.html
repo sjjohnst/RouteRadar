@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RouteRadar</title>
+</head>
+<body>
+    <div id="app">
+        <header id="top-nav">
+            <div class="brand">RouteRadar</div>
+            <nav class="nav-links">
+                <!-- Placeholder for future navigation items -->
+            </nav>
+            <button id="toolkit-toggle-nav" class="toolkit-nav-toggle" aria-label="Toggle tools panel">Hide tools</button>
+        </header>
+
+        <div id="layout">
+            <div id="map-container">
+                <div id="map"></div>
+                <div id="map-attribution">
+                    Imagerie @ Gouvernement du Québec. Elevation data @ Government of Canada (HRDEM).
+                </div>
+            </div>
+
+            <aside id="toolkit-panel">
+                <section class="toolkit-section">
+                    <div class="control-row" style="margin-bottom: 1em;">
+                        <input type="text" id="location-search-input" placeholder="Search location..." style="width: 250px;">
+                        <button id="location-search-btn">Search</button>
+                    </div>
+                    <h1 class="toolkit-title">Toolkit</h1>
+                    <p class="toolkit-subtitle">Guide</p>
+                                        <ul class="toolkit-hint" style="padding-left: 1.2rem; margin-top: 0.25rem;">
+                        <li>Left-drag: pan</li>
+                        <li>Scroll wheel / trackpad: zoom in/out</li>
+                    </ul>
+                </section>
+                
+                <section class="toolkit-section">
+                    <h2>HRDEM WMS Tiles</h2>
+                    <div class="control-row">
+                        <span style="min-width: 70px;">DTM:</span>
+                        <input type="checkbox" id="toggle-hrdem-wms-dtm">
+                        <label style="margin-left: 1em;">
+                            Opacity:
+                            <input type="range" id="hrdem-wms-dtm-opacity" min="0" max="1" step="0.01" value="0.8">
+                        </label>
+                        <span id="hrdem-wms-dtm-opacity-value" class="value-pill">0.8</span>
+                    </div>
+                    <div class="control-row">
+                        <span style="min-width: 70px;">Slope:</span>
+                        <input type="checkbox" id="toggle-hrdem-wms-slope">
+                        <label style="margin-left: 1em;">
+                            Opacity:
+                            <input type="range" id="hrdem-wms-slope-opacity" min="0" max="1" step="0.01" value="0.8">
+                        </label>
+                        <span id="hrdem-wms-slope-opacity-value" class="value-pill">0.8</span>
+                    </div>
+                    <div class="control-row">
+                        <span style="min-width: 70px;">Hillshade:</span>
+                        <input type="checkbox" id="toggle-hrdem-wms-hillshade">
+                        <label style="margin-left: 1em;">
+                            Opacity:
+                            <input type="range" id="hrdem-wms-hillshade-opacity" min="0" max="1" step="0.01" value="0.8">
+                        </label>
+                        <span id="hrdem-wms-hillshade-opacity-value" class="value-pill">0.8</span>
+                    </div>
+                </section>
+
+                <section class="toolkit-section">
+                    <h2>HRDEM Relief</h2>
+                    <label>
+                        <input type="checkbox" id="toggle-relief">
+                        Show
+                    </label>
+                    <div class="control-row">
+                        <label>
+                            Opacity:
+                            <input type="range" id="relief-opacity" min="0" max="1" step="0.01" value="0.5">
+                        </label>
+                        <span id="relief-opacity-value" class="value-pill">0.5</span>
+                    </div>
+                </section>
+
+                <section class="toolkit-section">
+                    <h2>Location &amp; Measurement</h2>
+                    <p class="toolkit-hint">Use the controls below to drop markers and, in future, measure distances.</p>
+
+                    <div class="control-row tool-buttons">
+                        <button id="tool-marker">Drop marker</button>
+                        <button id="tool-measure">Measure distance</button>
+                        <button id="tool-get-height">Get Height</button>
+                    </div>
+                    <div id="tool-output" class="tool-output">
+                        <!-- Click/measure results will appear here -->
+                    </div>
+                </section>
+            </aside>
+        </div>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+    <script type="module">
+    import { layerDefaults } from './src/config/layerDefaults.js';
+    // DTM
+    document.getElementById('toggle-hrdem-wms-dtm').checked = layerDefaults.dtm.visible;
+    document.getElementById('hrdem-wms-dtm-opacity').value = layerDefaults.dtm.opacity;
+    document.getElementById('hrdem-wms-dtm-opacity-value').textContent = layerDefaults.dtm.opacity;
+    // document.getElementById('hrdem-wms-dtm-colormap').value = layerDefaults.dtm.colormap;
+    // document.getElementById('hrdem-wms-dtm-rescale').value = layerDefaults.dtm.rescale;
+    // Slope
+    document.getElementById('toggle-hrdem-wms-slope').checked = layerDefaults.slope.visible;
+    document.getElementById('hrdem-wms-slope-opacity').value = layerDefaults.slope.opacity;
+    document.getElementById('hrdem-wms-slope-opacity-value').textContent = layerDefaults.slope.opacity;
+    // Hillshade
+    document.getElementById('toggle-hrdem-wms-hillshade').checked = layerDefaults.hillshade.visible;
+    document.getElementById('hrdem-wms-hillshade-opacity').value = layerDefaults.hillshade.opacity;
+    document.getElementById('hrdem-wms-hillshade-opacity-value').textContent = layerDefaults.hillshade.opacity;
+    // Mosaic
+    document.getElementById('toggle-relief').checked = layerDefaults.relief.visible;
+    document.getElementById('relief-opacity').value = layerDefaults.relief.opacity;
+    document.getElementById('relief-opacity-value').textContent = layerDefaults.relief.opacity;
+    </script>
+</body>
+</html>
