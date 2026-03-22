@@ -11,6 +11,8 @@ export const HRDEM_WMS_SLOPE_SOURCE_ID = 'hrdem-wms-slope';
 export const HRDEM_WMS_SLOPE_LAYER_ID = 'hrdem-wms-slope-layer';
 export const HRDEM_WMS_HILLSHADE_SOURCE_ID = 'hrdem-wms-hillshade';
 export const HRDEM_WMS_HILLSHADE_LAYER_ID = 'hrdem-wms-hillshade-layer';
+export const QUEBEC_PUBLIC_LAND_SOURCE_ID = 'quebec-public-land';
+export const QUEBEC_PUBLIC_LAND_LAYER_ID = 'quebec-public-land-layer';
 
 // Load AOI bounds from a GeoJSON file and apply them
 // as maxBounds (and initial view) for versatility.
@@ -121,6 +123,21 @@ export function buildHRDEMWmsUrl(layer = 'dtm', style = '') {
     return url;
 }
 
+// Build Quebec Public Land (PATP) WMS URL — routed through local proxy to avoid CORS
+export function buildQuebecPublicLandWmsUrl() {
+    return "/patp-wms" +
+        "?SERVICE=WMS" +
+        "&VERSION=1.3.0" +
+        "&REQUEST=GetMap" +
+        "&LAYERS=Affectations surfaciques" +
+        "&STYLES=" +
+        "&FORMAT=image/png" +
+        "&TRANSPARENT=TRUE" +
+        "&CRS=EPSG:3857" +
+        "&WIDTH=256&HEIGHT=256" +
+        "&BBOX={bbox-epsg-3857}";
+}
+
 // Default relief rendering parameters
 export const DEFAULT_RELIEF_COLORMAP = 'cividis';
 
@@ -172,6 +189,8 @@ export async function initMap() {
     const hrdemWmsDtmUrl = buildHRDEMWmsUrl('dtm', layerDefaults.dtm.style);
     const hrdemWmsSlopeUrl = buildHRDEMWmsUrl('dtm-slope', layerDefaults.slope.style);
     const hrdemWmsHillshadeUrl = buildHRDEMWmsUrl('dtm-hillshade', layerDefaults.hillshade.style);
+    // Quebec Public Land WMS URL
+    const quebecPublicLandUrl = buildQuebecPublicLandWmsUrl();
 
     const map = new maplibregl.Map({
         container: 'map',
@@ -207,6 +226,11 @@ export async function initMap() {
                     type: 'raster',
                     tiles: [hrdemWmsHillshadeUrl],
                     tileSize: 256,
+                },
+                [QUEBEC_PUBLIC_LAND_SOURCE_ID]: {
+                    type: 'raster',
+                    tiles: [quebecPublicLandUrl],
+                    tileSize: 256,
                 }
             },
             layers: [
@@ -215,6 +239,7 @@ export async function initMap() {
                 { id: HRDEM_WMS_DTM_LAYER_ID, type: 'raster', source: HRDEM_WMS_DTM_SOURCE_ID, paint: { 'raster-opacity': layerDefaults.dtm.opacity }, layout: { visibility: layerDefaults.dtm.visible ? 'visible' : 'none' } },
                 { id: HRDEM_WMS_SLOPE_LAYER_ID, type: 'raster', source: HRDEM_WMS_SLOPE_SOURCE_ID, paint: { 'raster-opacity': layerDefaults.slope.opacity }, layout: { visibility: layerDefaults.slope.visible ? 'visible' : 'none' } },
                 { id: HRDEM_WMS_HILLSHADE_LAYER_ID, type: 'raster', source: HRDEM_WMS_HILLSHADE_SOURCE_ID, paint: { 'raster-opacity': layerDefaults.hillshade.opacity }, layout: { visibility: layerDefaults.hillshade.visible ? 'visible' : 'none' } },
+                { id: QUEBEC_PUBLIC_LAND_LAYER_ID, type: 'raster', source: QUEBEC_PUBLIC_LAND_SOURCE_ID, paint: { 'raster-opacity': layerDefaults.quebecPublicLand.opacity }, layout: { visibility: layerDefaults.quebecPublicLand.visible ? 'visible' : 'none' } },
                 { id: 'labels-layer', type: 'raster', source: 'map-labels' },
             ]
         },
