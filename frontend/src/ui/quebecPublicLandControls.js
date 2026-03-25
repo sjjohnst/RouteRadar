@@ -6,6 +6,18 @@ const WMS_BASE = '/patp-wms';
 const WMS_LAYER = 'Affectations surfaciques';
 // Tile size used when computing I,J pixel coordinates for GetFeatureInfo
 const GFI_SIZE = 256;
+const EARTH_RADIUS = 6378137;
+const MAX_MERCATOR_LAT = 85.05112878;
+
+// Convert geographic coordinates to EPSG:3857 metres so BBOX ordering stays consistent
+function lngLatToWebMercator(lng, lat) {
+    const clampedLat = Math.max(Math.min(lat, MAX_MERCATOR_LAT), -MAX_MERCATOR_LAT);
+    const lambda = (lng * Math.PI) / 180;
+    const phi = (clampedLat * Math.PI) / 180;
+    const x = EARTH_RADIUS * lambda;
+    const y = EARTH_RADIUS * Math.log(Math.tan(Math.PI / 4 + phi / 2));
+    return { x, y };
+}
 
 /**
  * Build a WMS GetFeatureInfo URL for the given map click.
@@ -19,17 +31,19 @@ function buildGetFeatureInfoUrl(map, lngLat) {
 
     // Current viewport bounds in EPSG:3857 (Web Mercator)
     const bounds = map.getBounds();
-    const sw = maplibregl.MercatorCoordinate.fromLngLat(bounds.getSouthWest());
-    const ne = maplibregl.MercatorCoordinate.fromLngLat(bounds.getNorthEast());
+    const swMeters = lngLatToWebMercator(
+        bounds.getSouthWest().lng,
+        bounds.getSouthWest().lat
+    );
+    const neMeters = lngLatToWebMercator(
+        bounds.getNorthEast().lng,
+        bounds.getNorthEast().lat
+    );
 
-    // MercatorCoordinate is in 0-1 world units; convert to metres by multiplying
-    // by the circumference of the Earth at the equator in metres for EPSG:3857.
-    const EARTH_CIRC = 2 * Math.PI * 6378137;
-    const minX = sw.x * EARTH_CIRC - Math.PI * 6378137;
-    const maxX = ne.x * EARTH_CIRC - Math.PI * 6378137;
-    // Y is inverted in Mercator (north = smaller world unit)
-    const maxY = (1 - sw.y) * EARTH_CIRC - Math.PI * 6378137;
-    const minY = (1 - ne.y) * EARTH_CIRC - Math.PI * 6378137;
+    const minX = Math.min(swMeters.x, neMeters.x);
+    const maxX = Math.max(swMeters.x, neMeters.x);
+    const minY = Math.min(swMeters.y, neMeters.y);
+    const maxY = Math.max(swMeters.y, neMeters.y);
 
     // Pixel coordinates of the click relative to the canvas
     const point = map.project(lngLat);
@@ -131,6 +145,7 @@ export function setupQuebecPublicLandControls(map) {
                 const url = buildGetFeatureInfoUrl(map, e.lngLat);
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
                 const geojson = await res.json();
                 const features = geojson.features ?? [];
 
