@@ -12,10 +12,11 @@ const STATUS_QUERYING = 'Querying map services…';
 const STATUS_ERROR = 'Unable to fetch some map data.';
 const STATUS_SUCCESS = 'Placard updated on the map.';
 
-const NAME_KEYS = ['NOMZONE', 'NOM_ZONE', 'NOM_AFFECT', 'NOM'];
-const ID_KEYS = ['ID', 'ID_ZONE', 'ZONE_ID', 'ID_AFFECT'];
-const DATE_KEYS = ['DATE', 'DATE_MAJ', 'DATE_MAJZONE', 'DATEAFFECT'];
-const SUBZONE_KEYS = ['NOMSOUSZONE', 'NOM_SOUS_ZONE', 'SOUSZONE'];
+const NAME_KEYS = ['NOMZONE'];
+const ID_KEYS = ['Identifiant'];
+const DATE_KEYS = ['Date'];
+const USE_KEYS = ['Vocation'];
+const FULL_NAME_KEYS = ['NOMSOUSZONE'];
 
 function clampLat(lat) {
     return Math.max(Math.min(lat, MAX_MERCATOR_LAT), -MAX_MERCATOR_LAT);
@@ -63,14 +64,28 @@ function buildGetFeatureInfoUrl(map, lngLat) {
     return `${WMS_BASE}?${params.toString()}`;
 }
 
+function cleanValue(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed || trimmed.toLowerCase() === 'null') {
+            return null;
+        }
+        return trimmed;
+    }
+    return value;
+}
+
 function pickProp(props, keys) {
     for (const key of keys) {
-        if (props[key] !== undefined && props[key] !== null && props[key] !== '') {
-            return props[key];
+        const direct = cleanValue(props[key]);
+        if (direct !== null && direct !== undefined) {
+            return direct;
         }
-        const alt = key.toLowerCase();
-        if (props[alt] !== undefined && props[alt] !== null && props[alt] !== '') {
-            return props[alt];
+        const altKey = key.toLowerCase();
+        const alt = cleanValue(props[altKey]);
+        if (alt !== null && alt !== undefined) {
+            return alt;
         }
     }
     return null;
@@ -79,11 +94,19 @@ function pickProp(props, keys) {
 function normalisePublicLand(feature) {
     if (!feature) return null;
     const props = feature.properties || {};
+    if (props && typeof props === 'object') {
+        try {
+            console.debug('Info tool public land keys:', Object.keys(props));
+        } catch (err) {
+            console.debug('Info tool public land keys: <unavailable>', err);
+        }
+    }
     return {
         name: pickProp(props, NAME_KEYS) ?? 'NULL',
         id: pickProp(props, ID_KEYS) ?? 'N/A',
         date: pickProp(props, DATE_KEYS) ?? 'N/A',
-        subzone: pickProp(props, SUBZONE_KEYS) ?? 'N/A',
+        use: pickProp(props, USE_KEYS) ?? 'N/A',
+        fullName: pickProp(props, FULL_NAME_KEYS) ?? 'N/A',
     };
 }
 
@@ -110,7 +133,11 @@ async function fetchPublicLandFeature(map, lngLat, signal) {
         throw new Error(`Public land GetFeatureInfo failed: ${res.status}`);
     }
     const geojson = await res.json();
+    console.log('Info tool GetFeatureInfo response:', geojson);
     const features = geojson.features ?? [];
+    if (features[0]?.properties) {
+        console.log('Info tool first feature properties:', features[0].properties);
+    }
     return features[0] ?? null;
 }
 
@@ -119,7 +146,7 @@ function isAbortError(err) {
 }
 
 function buildPopupHtml({ coordsText, reliefText, publicInfo }) {
-    const info = publicInfo ?? { name: 'NULL', id: 'N/A', date: 'N/A', subzone: 'N/A' };
+    const info = publicInfo ?? { name: 'NULL', id: 'N/A', date: 'N/A', use: 'N/A', fullName: 'N/A' };
     return `
         <div class="info-popup">
             <div class="info-popup-row">
@@ -136,16 +163,20 @@ function buildPopupHtml({ coordsText, reliefText, publicInfo }) {
                     <span class="info-popup-value">${info.name}</span>
                 </summary>
                 <div class="info-popup-detail">
+                    <span class="info-popup-detail-label">Full Name</span>
+                    <span class="info-popup-detail-value">${info.fullName}</span>
+                </div>
+                <div class="info-popup-detail">
                     <span class="info-popup-detail-label">Id</span>
                     <span class="info-popup-detail-value">${info.id}</span>
                 </div>
                 <div class="info-popup-detail">
-                    <span class="info-popup-detail-label">Date</span>
-                    <span class="info-popup-detail-value">${info.date}</span>
+                    <span class="info-popup-detail-label">Use</span>
+                    <span class="info-popup-detail-value">${info.use}</span>
                 </div>
                 <div class="info-popup-detail">
-                    <span class="info-popup-detail-label">NomSousZone</span>
-                    <span class="info-popup-detail-value">${info.subzone}</span>
+                    <span class="info-popup-detail-label">Date</span>
+                    <span class="info-popup-detail-value">${info.date}</span>
                 </div>
             </details>
         </div>
