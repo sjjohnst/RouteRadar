@@ -7,6 +7,7 @@ import { initClickLocateTool } from './src/tools/clickLocate.js'
 import { initDistanceMeasureTool } from './src/tools/distanceMeasure.js'
 import { setupLocationSearch } from './src/ui/locationSearch.js';
 import { setupGetHeightTool } from './src/ui/getHeightTool.js';
+import { setupQuebecPublicLandControls } from './src/ui/quebecPublicLandControls.js';
 
 // Bootstrap map
 const map = await initMap();
@@ -17,6 +18,7 @@ setupHrdemWmsControls(map);
 setupToolkitToggle();
 setupLocationSearch(map);
 setupGetHeightTool(map);
+setupQuebecPublicLandControls(map);
 initClickLocateTool(map);
 initDistanceMeasureTool(map);
 
