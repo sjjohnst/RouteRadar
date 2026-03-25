@@ -30,6 +30,6 @@ export const layerDefaults = {
     colormap: 'cividis',
     // Physical display range in metres — converted to DN when building the tile URL
     vminMetres: 0.0,
-    vmaxMetres: 3.0,
+    vmaxMetres: 5.0,
   },
 };

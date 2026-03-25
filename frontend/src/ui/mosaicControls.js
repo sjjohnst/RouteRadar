@@ -1,13 +1,25 @@
 import { buildReliefTileUrl, HRDEM_RELIEF_SOURCE_ID, HRDEM_RELIEF_LAYER_ID } from '../map.js';
+import { layerDefaults } from '../config/layerDefaults.js';
+import { initReliefColorbar, updateReliefColorbar, showReliefColorbar } from './reliefColorbar.js';
 
 export async function setupReliefControls(map) {
-    const reliefToggle = document.getElementById('toggle-relief');
+    const reliefToggle        = document.getElementById('toggle-relief');
     const reliefOpacitySlider = document.getElementById('relief-opacity');
-    const reliefOpacityValue = document.getElementById('relief-opacity-value');
+    const reliefOpacityValue  = document.getElementById('relief-opacity-value');
+    const vminInput           = document.getElementById('relief-vmin');
+    const vmaxInput           = document.getElementById('relief-vmax');
+    const applyBtn            = document.getElementById('relief-rescale-apply');
+
+    // Current bounds — initialised from layerDefaults
+    let vmin = layerDefaults.relief.vminMetres;
+    let vmax = layerDefaults.relief.vmaxMetres;
+
+    // Draw the colorbar once on load and show it if the layer is visible
+    initReliefColorbar(vmin, vmax);
+    showReliefColorbar(layerDefaults.relief.visible);
 
     async function updateReliefSource() {
-        const newUrl = await buildReliefTileUrl();
-
+        const newUrl = await buildReliefTileUrl(vmin, vmax);
         const source = map.getSource(HRDEM_RELIEF_SOURCE_ID);
         if (source && typeof source.setTiles === 'function') {
             source.setTiles([newUrl]);
@@ -23,6 +35,7 @@ export async function setupReliefControls(map) {
                     reliefToggle.checked ? 'visible' : 'none'
                 );
             }
+            showReliefColorbar(reliefToggle.checked);
         });
     }
 
@@ -33,6 +46,21 @@ export async function setupReliefControls(map) {
             if (map.getLayer(HRDEM_RELIEF_LAYER_ID)) {
                 map.setPaintProperty(HRDEM_RELIEF_LAYER_ID, 'raster-opacity', value);
             }
+        });
+    }
+
+    if (applyBtn && vminInput && vmaxInput) {
+        applyBtn.addEventListener('click', async () => {
+            const newVmin = parseFloat(vminInput.value);
+            const newVmax = parseFloat(vmaxInput.value);
+            if (!Number.isFinite(newVmin) || !Number.isFinite(newVmax) || newVmin >= newVmax) {
+                alert('Please enter valid min/max values where min < max.');
+                return;
+            }
+            vmin = newVmin;
+            vmax = newVmax;
+            updateReliefColorbar(vmin, vmax);
+            await updateReliefSource();
         });
     }
 }
