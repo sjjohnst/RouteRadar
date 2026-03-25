@@ -1,3 +1,5 @@
+import maplibregl from 'maplibre-gl';
+
 const WMS_BASE = '/patp-wms';
 const WMS_LAYER = 'Affectations surfaciques';
 const GFI_SIZE = 256;
@@ -8,6 +10,7 @@ const STATUS_IDLE = 'Activate the tool and click on the map.';
 const STATUS_READY = 'Click on the map to retrieve information.';
 const STATUS_QUERYING = 'Querying map services…';
 const STATUS_ERROR = 'Unable to fetch some map data.';
+const STATUS_SUCCESS = 'Placard updated on the map.';
 
 const NAME_KEYS = ['NOMZONE', 'NOM_ZONE', 'NOM_AFFECT', 'NOM'];
 const ID_KEYS = ['ID', 'ID_ZONE', 'ZONE_ID', 'ID_AFFECT'];
@@ -115,29 +118,45 @@ function isAbortError(err) {
     return err?.name === 'AbortError';
 }
 
-function toggleDetails(detailsBtn, detailsPanel, expanded) {
-    if (!detailsBtn || !detailsPanel) return;
-    detailsBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-    const chevron = detailsBtn.querySelector('.chevron');
-    if (chevron) {
-        chevron.textContent = expanded ? '▾' : '▸';
-    }
-    detailsPanel.classList.toggle('hidden', !expanded);
+function buildPopupHtml({ coordsText, reliefText, publicInfo }) {
+    const info = publicInfo ?? { name: 'NULL', id: 'N/A', date: 'N/A', subzone: 'N/A' };
+    return `
+        <div class="info-popup">
+            <div class="info-popup-row">
+                <span class="info-popup-label">Coordinate</span>
+                <span class="info-popup-value">${coordsText}</span>
+            </div>
+            <div class="info-popup-row">
+                <span class="info-popup-label">Relief</span>
+                <span class="info-popup-value">${reliefText}</span>
+            </div>
+            <details class="info-popup-details">
+                <summary>
+                    <span class="info-popup-label">Public Land</span>
+                    <span class="info-popup-value">${info.name}</span>
+                </summary>
+                <div class="info-popup-detail">
+                    <span class="info-popup-detail-label">Id</span>
+                    <span class="info-popup-detail-value">${info.id}</span>
+                </div>
+                <div class="info-popup-detail">
+                    <span class="info-popup-detail-label">Date</span>
+                    <span class="info-popup-detail-value">${info.date}</span>
+                </div>
+                <div class="info-popup-detail">
+                    <span class="info-popup-detail-label">NomSousZone</span>
+                    <span class="info-popup-detail-value">${info.subzone}</span>
+                </div>
+            </details>
+        </div>
+    `;
 }
 
 export function setupInfoTool(map) {
     const button = document.getElementById('tool-info');
-    const coordsEl = document.getElementById('info-tool-coords');
-    const reliefEl = document.getElementById('info-tool-relief');
-    const publicNameEl = document.getElementById('info-tool-public-name');
-    const publicIdEl = document.getElementById('info-tool-public-id');
-    const publicDateEl = document.getElementById('info-tool-public-date');
-    const publicSubzoneEl = document.getElementById('info-tool-public-subzone');
     const statusEl = document.getElementById('info-tool-status');
-    const detailsBtn = document.getElementById('info-tool-public-expand');
-    const detailsPanel = document.getElementById('info-tool-public-details');
 
-    if (!button || !coordsEl || !reliefEl || !publicNameEl || !publicIdEl || !publicDateEl || !publicSubzoneEl || !statusEl || !detailsBtn || !detailsPanel) {
+    if (!button || !statusEl) {
         console.warn('Info tool markup missing; skipping setup.');
         return;
     }
@@ -146,42 +165,23 @@ export function setupInfoTool(map) {
         statusEl.textContent = msg;
     };
 
-    const resetPublicInfo = () => {
-        publicNameEl.textContent = 'NULL';
-        publicIdEl.textContent = 'N/A';
-        publicDateEl.textContent = 'N/A';
-        publicSubzoneEl.textContent = 'N/A';
-        detailsBtn.disabled = true;
-        toggleDetails(detailsBtn, detailsPanel, false);
-    };
-
-    const setPublicInfo = (info) => {
-        if (!info) {
-            resetPublicInfo();
-            return;
-        }
-        publicNameEl.textContent = info.name;
-        publicIdEl.textContent = info.id;
-        publicDateEl.textContent = info.date;
-        publicSubzoneEl.textContent = info.subzone;
-        detailsBtn.disabled = info.name === 'NULL' && info.id === 'N/A' && info.date === 'N/A' && info.subzone === 'N/A';
-        if (detailsBtn.disabled) {
-            toggleDetails(detailsBtn, detailsPanel, false);
-        }
-    };
-
-    const resetUi = () => {
-        coordsEl.textContent = '—';
-        reliefEl.textContent = 'N/A';
-        resetPublicInfo();
-        setStatus(STATUS_IDLE);
-    };
-
-    resetUi();
+    setStatus(STATUS_IDLE);
 
     let active = false;
     let clickHandler = null;
     let activeController = null;
+    let popup = null;
+
+    const showPopup = (lngLat, coordsText, reliefText, publicInfo) => {
+        const html = buildPopupHtml({ coordsText, reliefText, publicInfo });
+        if (popup) {
+            popup.remove();
+        }
+        popup = new maplibregl.Popup({ maxWidth: '320px', closeOnClick: false })
+            .setLngLat(lngLat)
+            .setHTML(html)
+            .addTo(map);
+    };
 
     const deactivate = () => {
         active = false;
@@ -207,18 +207,15 @@ export function setupInfoTool(map) {
         activeController = controller;
 
         const { lng, lat } = e.lngLat;
-        coordsEl.textContent = formatCoords(lng, lat);
-        reliefEl.textContent = 'Loading…';
-        publicNameEl.textContent = 'Loading…';
-        publicIdEl.textContent = '—';
-        publicDateEl.textContent = '—';
-        publicSubzoneEl.textContent = '—';
-        detailsBtn.disabled = true;
-        toggleDetails(detailsBtn, detailsPanel, false);
+        const coordsText = formatCoords(lng, lat);
         setStatus(STATUS_QUERYING);
 
         const reliefPromise = fetchReliefValue(lng, lat, controller.signal);
         const publicPromise = fetchPublicLandFeature(map, e.lngLat, controller.signal);
+
+        let reliefText = 'N/A';
+        let publicInfo = null;
+        let hadError = false;
 
         try {
             const [reliefResult, publicResult] = await Promise.allSettled([reliefPromise, publicPromise]);
@@ -228,33 +225,25 @@ export function setupInfoTool(map) {
 
             if (reliefResult.status === 'fulfilled') {
                 const value = reliefResult.value;
-                reliefEl.textContent = value === null ? 'N/A' : `${value.toFixed(2)} m`;
+                reliefText = value === null ? 'N/A' : `${value.toFixed(2)} m`;
             } else if (!isAbortError(reliefResult.reason)) {
-                reliefEl.textContent = 'N/A';
+                hadError = true;
             }
 
             if (publicResult.status === 'fulfilled') {
-                const info = normalisePublicLand(publicResult.value);
-                setPublicInfo(info);
+                publicInfo = normalisePublicLand(publicResult.value);
             } else if (!isAbortError(publicResult.reason)) {
-                resetPublicInfo();
+                hadError = true;
             }
 
-            if (
-                reliefResult.status === 'rejected' && !isAbortError(reliefResult.reason) ||
-                publicResult.status === 'rejected' && !isAbortError(publicResult.reason)
-            ) {
-                setStatus(STATUS_ERROR);
-            } else {
-                setStatus('Data retrieved.');
-            }
+            showPopup(e.lngLat, coordsText, reliefText, publicInfo);
+            setStatus(hadError ? STATUS_ERROR : STATUS_SUCCESS);
         } catch (err) {
             if (isAbortError(err)) {
                 return;
             }
             console.error('Info tool error:', err);
-            reliefEl.textContent = 'N/A';
-            resetPublicInfo();
+            showPopup(e.lngLat, coordsText, 'N/A', null);
             setStatus(STATUS_ERROR);
         } finally {
             if (activeController === controller) {
@@ -275,12 +264,6 @@ export function setupInfoTool(map) {
         map.getCanvas().style.cursor = 'crosshair';
         clickHandler = handleClick;
         map.on('click', clickHandler);
-    });
-
-    detailsBtn.addEventListener('click', () => {
-        if (detailsBtn.disabled) return;
-        const expanded = detailsBtn.getAttribute('aria-expanded') === 'true';
-        toggleDetails(detailsBtn, detailsPanel, !expanded);
     });
 
     return {

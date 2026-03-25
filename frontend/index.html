@@ -125,44 +125,11 @@
 
                 <section class="toolkit-section">
                     <h2>Info Tool</h2>
-                    <p class="toolkit-hint">Toggle on, then click anywhere to inspect relief and public land metadata.</p>
+                    <p class="toolkit-hint">Toggle on, then click anywhere to drop an information placard on the map.</p>
                     <div class="control-row tool-buttons">
                         <button id="tool-info" aria-pressed="false">Click info</button>
                     </div>
-                    <div id="info-tool-panel" class="info-panel">
-                        <div class="info-row">
-                            <span class="info-label">Coordinate</span>
-                            <span id="info-tool-coords" class="info-value">—</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">Relief</span>
-                            <span id="info-tool-relief" class="info-value">N/A</span>
-                        </div>
-                        <div class="info-row info-public-row">
-                            <span class="info-label">Public Land</span>
-                            <div class="info-public-value">
-                                <span id="info-tool-public-name" class="info-value">NULL</span>
-                                <button id="info-tool-public-expand" class="info-expand" aria-expanded="false" aria-controls="info-tool-public-details" disabled>
-                                    <span class="chevron">▸</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div id="info-tool-public-details" class="info-details hidden">
-                            <div class="info-detail">
-                                <span class="info-detail-label">Id</span>
-                                <span id="info-tool-public-id" class="info-detail-value">N/A</span>
-                            </div>
-                            <div class="info-detail">
-                                <span class="info-detail-label">Date</span>
-                                <span id="info-tool-public-date" class="info-detail-value">N/A</span>
-                            </div>
-                            <div class="info-detail">
-                                <span class="info-detail-label">NomSousZone</span>
-                                <span id="info-tool-public-subzone" class="info-detail-value">N/A</span>
-                            </div>
-                        </div>
-                        <div id="info-tool-status" class="info-status">Activate the tool and click on the map.</div>
-                    </div>
+                    <div id="info-tool-status" class="info-status">Activate the tool and click on the map.</div>
                 </section>
             </aside>
         </div>
