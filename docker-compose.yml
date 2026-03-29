@@ -6,8 +6,19 @@ services:
       - "8000:8000"
     environment:
       TITILER_CORS_ORIGINS: '["*"]'
-      WEB_CONCURRENCY: 1
+      WEB_CONCURRENCY: 8
       GDAL_CACHEMAX: 2048
+      #---- GDAL Settings ----
+      CPL_VSIL_CURL_CACHE_SIZE: 200000000     # 200MB curl cache
+      GDAL_BAND_BLOCK_CACHE: HASHSET
+      GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR  # Critical for S3/R2 - avoids listing bucket
+      GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: YES
+      GDAL_HTTP_MULTIPLEX: YES
+      GDAL_HTTP_VERSION: 2                     # Use HTTP/2
+      VSI_CACHE: TRUE
+      VSI_CACHE_SIZE: 536870912                # 512MB VSI cache
+      CPL_VSIL_CURL_ALLOWED_EXTENSIONS: ".tif,.tiff,.vrt,.ovr"
+      # --- R2 specific ---
       AWS_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
       AWS_S3_ENDPOINT_URL: ${R2_S3_ENDPOINT}

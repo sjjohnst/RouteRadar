@@ -20,7 +20,8 @@ from contextlib import asynccontextmanager
 import boto3
 from botocore.config import Config
 from cogeo_mosaic.mosaic import MosaicJSON
-from fastapi import FastAPI, Request
+from cogeo_mosaic.backends.memory import MemoryBackend
+from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import rasterio
@@ -148,3 +149,56 @@ async def relief_packing(request: Request):
         "scale_factor": request.app.state.scale_factor,
         "add_offset":   request.app.state.add_offset,
     })
+
+
+@app.get("/relief/point", summary="Query relief elevation at a geographic point")
+async def relief_point(
+    request: Request,
+    lng: float = Query(..., description="Longitude (WGS-84 decimal degrees)"),
+    lat: float = Query(..., description="Latitude  (WGS-84 decimal degrees)"),
+):
+    """
+    Returns the interpolated surface elevation (in metres) at the given
+    longitude/latitude by reading the in-memory mosaic directly with rasterio.
+
+    Response schema:
+      { "lng": float, "lat": float, "elevation_m": float | null }
+    """
+    mosaic_dict = request.app.state.mosaic_dict
+    scale_factor = request.app.state.scale_factor
+    add_offset   = request.app.state.add_offset
+
+    try:
+        backend = MemoryBackend(mosaic_dict)
+        # get_assets returns a list of asset paths that cover the point
+        assets = backend.get_assets(lng, lat)
+        if not assets:
+            return JSONResponse({"lng": lng, "lat": lat, "elevation_m": None})
+
+        # Try each asset in priority order; return the first valid pixel
+        with rasterio.Env(
+            AWS_S3_ENDPOINT=os.environ.get("AWS_S3_ENDPOINT_URL", "").replace("https://", ""),
+            AWS_VIRTUAL_HOSTING=False,
+        ):
+            for asset in assets:
+                try:
+                    with rasterio.open(asset) as src:
+                        # Sample returns an iterable of tuples, one per point
+                        vals = list(src.sample([(lng, lat)], indexes=1))
+                        raw = float(vals[0][0])
+                        # nodata guard — rasterio returns nodata as the raw value
+                        if src.nodata is not None and raw == src.nodata:
+                            continue
+                        elevation_m = raw * scale_factor + add_offset
+                        return JSONResponse({"lng": lng, "lat": lat, "elevation_m": round(elevation_m, 3)})
+                except Exception:
+                    continue
+
+        return JSONResponse({"lng": lng, "lat": lat, "elevation_m": None})
+
+    except Exception as exc:
+        logger.error("Error querying relief point (%.5f, %.5f): %s", lng, lat, exc)
+        return JSONResponse(
+            {"detail": "Internal error querying relief point."},
+            status_code=500,
+        )

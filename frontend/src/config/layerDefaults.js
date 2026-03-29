@@ -22,6 +22,12 @@ export const layerDefaults = {
     opacity: 0.8,
     style: 'hillshade',
   },
+  quebecPublicLand: {
+    id: 'quebec-public-land',
+    layerId: 'quebec-public-land-layer',
+    visible: true,
+    opacity: 0.7,
+  },
   relief: {
     id: 'hrdem-relief',
     layerId: 'hrdem-relief-layer',
@@ -30,6 +36,6 @@ export const layerDefaults = {
     colormap: 'cividis',
     // Physical display range in metres — converted to DN when building the tile URL
     vminMetres: 0.0,
-    vmaxMetres: 3.0,
+    vmaxMetres: 5.0,
   },
 };
