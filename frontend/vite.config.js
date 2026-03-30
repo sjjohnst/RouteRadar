@@ -1,5 +1,7 @@
 import { defineConfig } from 'vite';
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 export default defineConfig({
   server: {
     host: '0.0.0.0',   // must bind to 0.0.0.0 inside Docker
@@ -16,5 +18,5 @@ export default defineConfig({
       },
     },
   },
-  plugins: []
+  plugins: [cloudflare()]
 });
