@@ -1,6 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import { layerDefaults } from './config/layerDefaults.js';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { BACKEND_URL, QUEBEC_IMAGERY_URL, QUEBEC_PUBLIC_LAND_WMS_URL } from './config/api.js';
 
 // Shared layer/source identifiers so UI and tools stay in sync
 export const HRDEM_RELIEF_SOURCE_ID = 'hrdem-relief';
@@ -124,8 +125,12 @@ export function buildHRDEMWmsUrl(layer = 'dtm', style = '') {
 }
 
 // Build Quebec Public Land (PATP) WMS URL — routed through local proxy to avoid CORS
-export function buildQuebecPublicLandWmsUrl() {
-    return "/patp-wms" +
+export function buildQuebecPublicLandWmsUrl() {    
+    const base = import.meta.env.PROD
+        ? QUEBEC_PUBLIC_LAND_WMS_URL
+        : "/patp-wms";
+    return (
+        base +
         "?SERVICE=WMS" +
         "&VERSION=1.3.0" +
         "&REQUEST=GetMap" +
@@ -135,9 +140,9 @@ export function buildQuebecPublicLandWmsUrl() {
         "&TRANSPARENT=TRUE" +
         "&CRS=EPSG:3857" +
         "&WIDTH=256&HEIGHT=256" +
-        "&BBOX={bbox-epsg-3857}";
+        "&BBOX={bbox-epsg-3857}"
+    );
 }
-
 // Default relief rendering parameters
 export const DEFAULT_RELIEF_COLORMAP = 'cividis';
 
@@ -158,7 +163,7 @@ export async function buildReliefTileUrl(
     let scaleFactor = 0.01;  // fallback matches ingestion default
     let addOffset   = 0.0;
     try {
-        const res = await fetch('/relief/packing');
+        const res = await fetch(`${BACKEND_URL}/relief/packing`);
         if (res.ok) {
             const meta = await res.json();
             scaleFactor = meta.scale_factor;
@@ -176,13 +181,13 @@ export async function buildReliefTileUrl(
         rescale:      `${vminDN},${vmaxDN}`,
         colormap_name: colormap,
     });
-    return `/mosaicjson/tiles/WebMercatorQuad/{z}/{x}/{y}?${params.toString()}`;
+    return `${BACKEND_URL}/mosaicjson/tiles/WebMercatorQuad/{z}/{x}/{y}?${params.toString()}`;
 }
 
 export async function initMap() {
-    const quebecImageryUrl = "https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue/Imagerie_GQ/default/GoogleMapsCompatibleExt2:epsg:3857/{z}/{y}/{x}.jpg";
+    const quebecImageryUrl = QUEBEC_IMAGERY_URL;
     const cartoLabelsUrl = "https://maps-cartes.services.geo.ca/server2_serveur2/rest/services/BaseMaps/CBMT_TXT_3857/MapServer/WMTS/tile/1.0.0/BaseMaps_CBMT_TXT_3857/default/default028mm/{z}/{y}/{x}.png";
-    
+
     // Build the relief tile URL (async — fetches packing metadata from backend)
     const reliefUrl = await buildReliefTileUrl();
     // HRDEM WMS URLs
