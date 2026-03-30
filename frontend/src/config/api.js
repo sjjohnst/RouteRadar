@@ -10,7 +10,7 @@ export const QUEBEC_PUBLIC_LAND_WMS_URL =
 export const BACKEND_URL =
     window.BACKEND_URL ||
     import.meta.env.VITE_BACKEND_URL ||
-    'http://165.245.234.224:8000'; // DigitalOcean default
+    'https://165.245.234.224.sslip.io'; // DigitalOcean default
 
 // Quebec Imagery URL: use env variable in prod, else default
 export const QUEBEC_IMAGERY_URL =
