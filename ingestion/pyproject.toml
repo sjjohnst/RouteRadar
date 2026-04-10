@@ -23,4 +23,5 @@ dependencies = [
 [tool.pytest.ini_options]
 markers = [
     "integration: downloads real data from the HRDEM STAC API (deselect with -m 'not integration')",
+    "resource: verifies peak RAM scales with STRIP_HEIGHT, not tile area (no network needed)",
 ]
