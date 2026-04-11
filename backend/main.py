@@ -17,6 +17,14 @@ import os
 import logging
 from contextlib import asynccontextmanager
 
+# --- CLOUDFLARE R2 WORKAROUND ---
+# Lambda blocks us from setting AWS_ credentials in the console, 
+# so we inject our R2 keys internally before GDAL initializes.
+if "R2_ACCESS_KEY_ID" in os.environ:
+    os.environ["AWS_ACCESS_KEY_ID"] = os.environ["R2_ACCESS_KEY_ID"]
+    os.environ["AWS_SECRET_ACCESS_KEY"] = os.environ["R2_SECRET_ACCESS_KEY"]
+    os.environ["AWS_REGION"] = os.environ.get("R2_REGION", "auto")
+
 import boto3
 from botocore.config import Config
 from cogeo_mosaic.mosaic import MosaicJSON
@@ -24,6 +32,7 @@ from cogeo_mosaic.backends.memory import MemoryBackend
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from mangum import Mangum
 import rasterio
 
 from titiler.core.errors import DEFAULT_STATUS_CODES, add_exception_handlers
@@ -136,6 +145,10 @@ app.include_router(mosaic.router, prefix="/mosaicjson")
 add_exception_handlers(app, DEFAULT_STATUS_CODES)
 add_exception_handlers(app, MOSAIC_STATUS_CODES)
 
+# AWS Lambda entry point — Mangum translates Lambda events into ASGI requests.
+# When running locally with Uvicorn, this line is harmlessly ignored.
+handler = Mangum(app)
+
 
 @app.get("/relief/packing", summary="Packing metadata for relief COGs")
 async def relief_packing(request: Request):
@@ -190,7 +203,9 @@ async def relief_point(
                         if src.nodata is not None and raw == src.nodata:
                             continue
                         elevation_m = raw * scale_factor + add_offset
-                        return JSONResponse({"lng": lng, "lat": lat, "elevation_m": round(elevation_m, 3)})
+                        return JSONResponse({"lng": lng,
+                                             "lat": lat,
+                                             "elevation_m": round(elevation_m, 3)})
                 except Exception:
                     continue
 
