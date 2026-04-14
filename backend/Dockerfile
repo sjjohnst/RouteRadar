@@ -1,25 +1,56 @@
 # Titiler custom API Dockerfile — AWS Lambda (container image)
-FROM public.ecr.aws/lambda/python:3.12
+ARG PYTHON_VERSION=3.12
+FROM --platform=linux/amd64 public.ecr.aws/lambda/python:${PYTHON_VERSION}
 
-# Install system dependencies (ex: GDAL)
-RUN yum update -y && \
-    yum install -y expat && \
-    mkdir -p /opt/lib && \
-    cp -a /usr/lib64/libexpat.so.1* /opt/lib/ && \
-    yum clean all
+WORKDIR /tmp
 
-# Install dependencies into the Lambda task root
+# Install system dependencies to compile (numexpr)
+RUN dnf install -y gcc-c++ && dnf clean all
+
+# Install dependencies into /asset
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install pip -U
+RUN python -m pip install "titiler-application==1.1.1" "mangum>=0.10.0" -t /asset --no-binary pydantic
+RUN pip install --no-cache-dir -r requirements.txt -t /asset
+
+# Reduce package size — strip pyc files, remove sources, strip shared libs, remove test dirs
+RUN cd /asset && find . -type f -name '*.pyc' | while read f; do n=$(echo $f | sed 's/__pycache__\///' | sed 's/.cpython-[0-9]*//'); cp $f $n; done;
+RUN cd /asset && find . -type d -a -name '__pycache__' -print0 | xargs -0 rm -rf
+RUN cd /asset && find . -type f -a -name '*.py' -print0 | xargs -0 rm -f
+RUN cd /asset && find . -type f -name '*.so*' -not -path "*/numpy.libs/*" -exec strip --strip-unneeded {} \; 2>/dev/null || true
+RUN find /asset -type d -a -name 'tests' -print0 | xargs -0 rm -rf
+RUN rm -rdf /asset/numpy/doc/ /asset/boto3* /asset/botocore* /asset/bin /asset/geos_license /asset/Misc
+
+# Fix missing shared library in Lambda runtime
+# Ref: https://github.com/developmentseed/titiler/discussions/1108#discussioncomment-13045681
+RUN cp /usr/lib64/libexpat.so.1 /asset/
 
 # Copy application code
-COPY __init__.py  ${LAMBDA_TASK_ROOT}/__init__.py
-COPY routers.py   ${LAMBDA_TASK_ROOT}/routers.py
-COPY main.py      ${LAMBDA_TASK_ROOT}/main.py
+COPY __init__.py  /asset/__init__.py
+COPY state.py     /asset/state.py
+COPY routers.py   /asset/routers.py
+COPY main.py      /asset/main.py
+
+# Smoke test — verify all imports resolve without starting the app or
+# touching any external services (no lifespan, no env vars required).
+WORKDIR /asset
+RUN python -c "\
+import cogeo_mosaic; \
+import rasterio; \
+import boto3; \
+import mangum; \
+import fastapi; \
+import titiler.core; \
+import titiler.mosaic; \
+from cogeo_mosaic.backends.memory import MemoryBackend; \
+from titiler.mosaic.factory import MosaicTilerFactory; \
+import state; \
+print('All Good')"
 
 # GDAL/VSI tuning — baked into the image so these apply in both Lambda
 # and the docker-compose local stack without duplication.
-ENV GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR \
+ENV PYTHONPATH=/asset \
+    GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR \
     CPL_VSIL_CURL_ALLOWED_EXTENSIONS=.tif,.tiff,.vrt,.ovr \
     GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=YES \
     GDAL_HTTP_MULTIPLEX=YES \

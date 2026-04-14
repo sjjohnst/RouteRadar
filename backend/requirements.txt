@@ -1,6 +1,3 @@
-titiler.core
-titiler.mosaic
 cogeo-mosaic
 boto3
 rio-tiler[s3]
-mangum
