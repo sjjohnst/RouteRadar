@@ -43,9 +43,15 @@ variable "lambda_memory_mb" {
 }
 
 variable "lambda_timeout_s" {
-  description = "Lambda timeout in seconds. Must be ≤ 29 s when behind API Gateway; Function URL allows up to 900 s."
+  description = "Lambda timeout in seconds. API Gateway HTTP API hard cap is 29 s; do not exceed it."
   type        = number
-  default     = 60
+  default     = 29
+}
+
+variable "lambda_provisioned_concurrency" {
+  description = "Number of Lambda containers to keep permanently warm via provisioned concurrency. Eliminates cold-start 503s during map panning. Set to 0 to disable. NOTE: requires account concurrency limit > 10 (new accounts default to 10 total). Request an increase via AWS Support before enabling."
+  type        = number
+  default     = 0
 }
 
 variable "log_retention_days" {

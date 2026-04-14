@@ -101,6 +101,7 @@ resource "aws_lambda_function" "backend" {
   image_uri    = "${aws_ecr_repository.backend.repository_url}:${var.image_tag}"
 
   architectures = ["x86_64"] # matches --platform=linux/amd64 in the Dockerfile
+  publish       = true        # required for provisioned concurrency (can't use $LATEST)
 
   # TiTiler reads entire COG headers and can be CPU-intensive for mosaic builds.
   # 3 GB memory also gives ~2 vCPUs. Adjust down once you have real metrics.
@@ -141,6 +142,29 @@ resource "aws_lambda_function" "backend" {
 }
 
 # ---------------------------------------------------------------------------
+# Lambda alias + provisioned concurrency
+#
+# The alias ("live") always points to $LATEST. Provisioned concurrency keeps
+# N containers permanently warm so concurrent tile requests on a cold map
+# don't all race to cold-start simultaneously and trigger 503s.
+# Set var.lambda_provisioned_concurrency = 0 to skip this resource.
+# ---------------------------------------------------------------------------
+
+resource "aws_lambda_alias" "live" {
+  name             = "live"
+  function_name    = aws_lambda_function.backend.function_name
+  function_version = aws_lambda_function.backend.version
+}
+
+resource "aws_lambda_provisioned_concurrency_config" "live" {
+  count = var.lambda_provisioned_concurrency > 0 ? 1 : 0
+
+  function_name                  = aws_lambda_function.backend.function_name
+  qualifier                      = aws_lambda_alias.live.name
+  provisioned_concurrent_executions = var.lambda_provisioned_concurrency
+}
+
+# ---------------------------------------------------------------------------
 # API Gateway HTTP API — public HTTPS endpoint in front of Lambda.
 # This is the pattern recommended by the TiTiler Lambda deployment docs and
 # avoids account-level Lambda public access restrictions that block Function URLs.
@@ -163,7 +187,7 @@ resource "aws_apigatewayv2_api" "backend" {
 resource "aws_apigatewayv2_integration" "backend" {
   api_id                 = aws_apigatewayv2_api.backend.id
   integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.backend.invoke_arn
+  integration_uri        = aws_lambda_alias.live.invoke_arn
   payload_format_version = "2.0" # required for Mangum
 }
 
@@ -180,11 +204,12 @@ resource "aws_apigatewayv2_stage" "default" {
   tags        = local.common_tags
 }
 
-# Allow API Gateway to invoke the Lambda function.
+# Allow API Gateway to invoke the Lambda alias (which carries provisioned concurrency).
 resource "aws_lambda_permission" "apigw" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.backend.function_name
+  qualifier     = aws_lambda_alias.live.name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.backend.execution_arn}/*/*"
 }
