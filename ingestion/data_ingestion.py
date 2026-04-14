@@ -8,14 +8,13 @@ from typing import Tuple
 import boto3
 from botocore.client import Config
 import rasterio
+from rasterio.windows import Window
 from dotenv import load_dotenv
 import numpy as np
 from pyproj import Transformer
 from pystac_client import Client as StacClient
-import rioxarray as rxr
 from shapely.geometry import shape, box
 from tqdm import tqdm
-import xarray as xr
 
 
 class DTMIngestor:
@@ -29,6 +28,11 @@ class DTMIngestor:
     """
 
     BUFFER_PIXELS = 1  # 1-pixel border used during slope computation
+
+    # Maximum rows to hold in RAM at once during relief/slope computation.
+    # At 1 m/px, 2048 rows × 32768 cols × float32 ≈ 256 MB — well within WSL limits.
+    # Increase for faster I/O on machines with more RAM; decrease to reduce peak usage.
+    STRIP_HEIGHT = 2048
 
     def __init__(
         self,
@@ -106,7 +110,20 @@ class DTMIngestor:
         for item in items:
             self.logger.info("  - %s", item.id)
 
-        return [f"/vsicurl/{item.assets['dtm'].href}" for item in items]
+        urls = []
+        for item in items:
+            # Prefer the VRT sidecar over the raw COG:
+            #   - VRT declares 512×512 blocks (vs implicit COG blocks), halving round-trips
+            #   - VRT carries an explicit OverviewList so gdalwarp can pick the right
+            #     overview level for the target resolution without extra HEAD requests
+            #   - VRT is in the native EPSG:3979 projection — no extra metadata fetches
+            asset_key = "dtm-vrt" if "dtm-vrt" in item.assets else "dtm"
+            if asset_key == "dtm-vrt":
+                self.logger.info("  Using VRT sidecar for %s", item.id)
+            else:
+                self.logger.warning("  No VRT asset found for %s, falling back to COG", item.id)
+            urls.append(f"/vsicurl/{item.assets[asset_key].href}")
+        return urls
 
     # ------------------------------------------------------------------
     # Public interface
@@ -148,6 +165,7 @@ class DTMIngestor:
             for x in cols
             for y in rows
         ]
+        self.logger.info("Processing %d tiles intersecting the AOI...", len(bboxes))
 
         tile_id = 0
         for bbox in tqdm(bboxes, desc="Processing tiles"):
@@ -194,15 +212,50 @@ class DTMIngestor:
         """
         Fetch a 1-pixel-buffered DTM tile from the remote mosaic via gdalwarp.
         Returns the path to the downloaded file.
+
+        Performance notes
+        -----------------
+        The HRDEM mosaic is served as a COG over HTTPS.  gdalwarp reads it via
+        GDAL's /vsicurl/ driver, which by default makes many small HTTP range
+        requests — one per internal COG block touched during reprojection.  At
+        typical WSL → internet latency (~20 ms RTT) this serialises to ~0.5 MB/s
+        even on a fast connection.  The env vars below fix this:
+
+        GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=YES
+            Merges adjacent range requests into a single, larger HTTP request,
+            dramatically reducing round-trips when reading sequential COG blocks.
+
+        GDAL_HTTP_MULTIPLEX=YES  +  GDAL_HTTP_MAX_CONNECTIONS=8
+            Sends up to 8 range requests in parallel over a single HTTP/2
+            multiplexed connection, hiding per-request latency.
+
+        GDAL_CACHEMAX (via --config inside gdalwarp)
+            Raises GDAL's internal block cache from the default 5 % of RAM
+            (~200 MB on most machines) to 1 GB so remote blocks fetched for
+            overview resampling are reused rather than re-fetched.
         """
         minx, miny, maxx, maxy = bbox
         buf = self.BUFFER_PIXELS * self.pixel_size
         size = self.tile_size + 2 * self.BUFFER_PIXELS
 
         out_file = self.output_dir / f"dtm_tile_{tile_id}_buffered.tif"
+
+        # Inherit the current environment and layer in the /vsicurl/ tuning.
+        # These are set as subprocess env vars (not os.environ) so they only
+        # affect this gdalwarp call and don't leak into the Python process.
+        env = os.environ.copy()
+        env.update({
+            "GDAL_HTTP_MERGE_CONSECUTIVE_RANGES": "YES",
+            "GDAL_HTTP_MULTIPLEX":               "YES",
+            "GDAL_HTTP_MAX_CONNECTIONS":         "8",
+            "GDAL_DISABLE_READDIR_ON_OPEN":      "EMPTY_DIR",
+            "CPL_VSIL_CURL_ALLOWED_EXTENSIONS":  ".tif,.vrt",
+        })
+
         cmd = [
             "gdalwarp",
             "-q",
+            "--config", "GDAL_CACHEMAX", "1024",
             "-t_srs", "EPSG:3857",
             "-multi",
             "-wo", "NUM_THREADS=ALL_CPUS",
@@ -210,112 +263,186 @@ class DTMIngestor:
             "-ts", str(size), str(size),
             "-of", "GTiff",
             "-co", "COMPRESS=DEFLATE",
+            # Tiled layout enables efficient random-access strip reads during compute
+            "-co", "TILED=YES",
+            "-co", "BLOCKXSIZE=256",
+            "-co", "BLOCKYSIZE=256",
             "-co", "NUM_THREADS=ALL_CPUS",
             *self.mosaic_urls,
             str(out_file),
         ]
         self.logger.info("Downloading DTM for tile %d...", tile_id)
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, check=True, env=env)
         return out_file
 
     def _compute_relief(self, buffered_path: Path, tile_id: int) -> tuple[Path, float, float]:
+        """
+        Compute local 2×2 relief (max - min) in horizontal strips to cap RAM usage.
+
+        Peak RAM ≈ STRIP_HEIGHT × tile_width × 6 arrays × 4 bytes
+        e.g. 2048 × 32768 × 6 × 4 ≈ 1.5 GB — safe for WSL.
+        """
         SCALE  = 0.01   # 1 cm precision
         OFFSET = 0.0
 
-        da      = rxr.open_rasterio(buffered_path, masked=True).squeeze()
-        arr     = da.values.astype(np.float32)          # (rows, cols)
-        nodata  = da.rio.nodata or da.rio.encoded_nodata
-
-        # Replace nodata with a high sentinel so it never drives the minimum down
-        if nodata is not None:
-            valid_mask = ~np.isclose(arr, nodata)
-        else:
-            valid_mask = np.isfinite(arr)
-        sentinel = np.nanmax(arr[valid_mask]) if valid_mask.any() else 0.0
-        arr_safe = np.where(valid_mask, arr, sentinel)
-
-        # 2×2 kernel — result lives at pixel-corner intersections
-        # shape: (rows-1, cols-1)
-        local_max = np.maximum(
-            np.maximum(arr_safe[:-1, :-1], arr_safe[:-1, 1:]),
-            np.maximum(arr_safe[1:,  :-1], arr_safe[1:,  1:]),
-        )
-        local_min = np.minimum(
-            np.minimum(arr_safe[:-1, :-1], arr_safe[:-1, 1:]),
-            np.minimum(arr_safe[1:,  :-1], arr_safe[1:,  1:]),
-        )
-        relief = local_max - local_min
-
-        # Zero out windows where any of the 4 pixels was nodata
-        corner_valid = (
-            valid_mask[:-1, :-1] & valid_mask[:-1, 1:] &
-            valid_mask[1:,  :-1] & valid_mask[1:,  1:]
-        )
-        relief = np.where(corner_valid, relief, 0.0)
-
-        packed = np.round(relief / SCALE).astype(np.uint16)
-
-        # Shift origin by +0.5 px so coordinates sit on pixel-corner intersections
-        res       = self.pixel_size
-        transform = da.rio.transform()
-        new_origin_x = transform.c + 0.5 * res
-        new_origin_y = transform.f - 0.5 * res          # y increases downward in transform
-        new_transform = rasterio.transform.from_origin(
-            new_origin_x, new_origin_y,
-            res, res,
-        )
-
         tmp = buffered_path.parent / f"relief_tmp_{tile_id}.tif"
-        with rasterio.open(
-            tmp, "w",
-            driver="GTiff",
-            height=packed.shape[0],    # rows - 1
-            width=packed.shape[1],     # cols - 1
-            count=1,
-            dtype="uint16",
-            crs=da.rio.crs,
-            transform=new_transform,
-        ) as dst:
-            dst.write(packed, 1)
+
+        with rasterio.open(buffered_path) as src:
+            src_h     = src.height
+            src_w     = src.width
+            nodata    = src.nodata
+            transform = src.transform
+            crs       = src.crs
+            res       = self.pixel_size
+
+            # The buffered source is (tile_size + 2*buf) × (tile_size + 2*buf).
+            # The 2×2 kernel at output pixel [r, c] reads source pixels
+            # [r, c], [r, c+1], [r+1, c], [r+1, c+1].  Starting the output
+            # grid at source row/col `buf` means the first kernel window is
+            # fully inside the original (unbuffered) tile, and the last window
+            # at source row (src_h - 2) stays inside the buffer edge.
+            # Result: exactly tile_size × tile_size output pixels.
+            buf   = 1  # == BUFFER_PIXELS; local alias for clarity
+            out_h = src_h - 2 * buf  # == tile_size  (e.g. 32768)
+            out_w = src_w - 2 * buf
+
+            # Origin shifts by buf pixels (top-left corner of the first kernel
+            # window sits at the top-left corner of the unbuffered tile).
+            new_origin_x = transform.c + buf * res
+            new_origin_y = transform.f - buf * res
+            new_transform = rasterio.transform.from_origin(new_origin_x, new_origin_y, res, res)
+
+            out_profile = {
+                "driver":    "GTiff",
+                "height":    out_h,
+                "width":     out_w,
+                "count":     1,
+                "dtype":     "uint16",
+                "crs":       crs,
+                "transform": new_transform,
+            }
+
+            with rasterio.open(tmp, "w", **out_profile) as dst:
+                strip = self.STRIP_HEIGHT
+
+                # We need one extra source row below each strip to complete the
+                # 2×2 kernel at the strip boundary, so we read (rows_to_write + 1)
+                # source rows but only write rows_to_write output rows.
+                # Source row index = output row index + buf (skip the top buffer).
+                for row_start in range(0, out_h, strip):
+                    rows_to_write = min(strip, out_h - row_start)
+                    src_row_start = row_start + buf
+                    src_row_end   = src_row_start + rows_to_write + 1  # +1 for bottom kernel edge
+
+                    win = Window(0, src_row_start, src_w, src_row_end - src_row_start)
+                    arr = src.read(1, window=win).astype(np.float32)
+
+                    if nodata is not None:
+                        valid_mask = ~np.isclose(arr, nodata)
+                    else:
+                        valid_mask = np.isfinite(arr)
+
+                    sentinel = float(np.nanmax(arr[valid_mask])) if valid_mask.any() else 0.0
+                    arr_safe = np.where(valid_mask, arr, sentinel)
+
+                    # 2×2 kernel over the strip (output rows = arr_rows - 1)
+                    local_max = np.maximum(
+                        np.maximum(arr_safe[:-1, :-1], arr_safe[:-1, 1:]),
+                        np.maximum(arr_safe[1:,  :-1], arr_safe[1:,  1:]),
+                    )
+                    local_min = np.minimum(
+                        np.minimum(arr_safe[:-1, :-1], arr_safe[:-1, 1:]),
+                        np.minimum(arr_safe[1:,  :-1], arr_safe[1:,  1:]),
+                    )
+                    relief = local_max - local_min
+
+                    corner_valid = (
+                        valid_mask[:-1, :-1] & valid_mask[:-1, 1:] &
+                        valid_mask[1:,  :-1] & valid_mask[1:,  1:]
+                    )
+                    relief = np.where(corner_valid, relief, 0.0)
+
+                    # Trim to the actual output columns, skipping the left buffer column.
+                    packed = np.round(relief[:rows_to_write, buf:buf + out_w] / SCALE).astype(np.uint16)
+
+                    out_win = Window(0, row_start, out_w, rows_to_write)
+                    dst.write(packed, 1, window=out_win)
 
         return tmp, SCALE, OFFSET
 
     def _compute_slope(self, dtm_file: Path, tile_id: int) -> Tuple[Path, float, float]:
         """
-        Compute slope (degrees) from the buffered DTM, crop the border pixels,
-        and write an uncompressed intermediate GeoTIFF for gdal_translate.
-        Returns the path to the intermediate file.
+        Compute slope (degrees) from the buffered DTM in horizontal strips,
+        crop the 1-pixel border, and write an intermediate GeoTIFF.
+
+        Each strip reads (STRIP_HEIGHT + 2) source rows so that np.gradient
+        has valid neighbours at both edges; only the interior rows are written.
         """
-        dtm = rxr.open_rasterio(dtm_file).squeeze()
-        res = abs(float(dtm.rio.resolution()[0]))
-
-        dz_dx, dz_dy = np.gradient(dtm.values, res, res)
-        slope = np.degrees(np.arctan(np.sqrt(dz_dx**2 + dz_dy**2)))
-
-        # Pack slope into uint16 using a scale_factor / add_offset convention
-        # (identical to NetCDF packing): unpacked = packed * scale_factor + add_offset
-        # scale_factor=0.1, add_offset=0.0  →  0.1° precision, range 0–6553.5°
-        SCALE = 0.1
+        SCALE  = 0.1   # 0.1° precision
         OFFSET = 0.0
-        slope_packed = np.clip(
-            np.round((slope - OFFSET) / SCALE), 0, np.iinfo(np.uint16).max
-        ).astype(np.uint16)
-
-        # Strip the 1-pixel border used to avoid edge artefacts
-        b = self.BUFFER_PIXELS
-        slope_da = xr.DataArray(
-            slope_packed[b:-b, b:-b],
-            coords={"y": dtm.y.values[b:-b], "x": dtm.x.values[b:-b]},
-            dims=("y", "x"),
-            name="slope",
-        )
-        slope_da.rio.write_crs(dtm.rio.crs, inplace=True)
-        # Do NOT set scale_factor/add_offset in attrs here — rioxarray would
-        # treat them as CF conventions and rescale the array back to float on
-        # write. Instead, stamp them onto the COG band via gdal_translate -mo.
 
         tmp_file = self.output_dir / f"slope_tile_{tile_id}_tmp.tif"
-        slope_da.rio.to_raster(tmp_file)
+
+        with rasterio.open(dtm_file) as src:
+            src_h     = src.height
+            src_w     = src.width
+            b         = self.BUFFER_PIXELS
+            out_h     = src_h - 2 * b
+            out_w     = src_w - 2 * b
+            res       = abs(float(src.res[0]))
+            transform = src.transform
+            crs       = src.crs
+
+            # Crop the buffer border from the transform origin
+            new_transform = rasterio.transform.from_origin(
+                transform.c + b * res,
+                transform.f - b * res,
+                res, res,
+            )
+
+            out_profile = {
+                "driver":    "GTiff",
+                "height":    out_h,
+                "width":     out_w,
+                "count":     1,
+                "dtype":     "uint16",
+                "crs":       crs,
+                "transform": new_transform,
+            }
+
+            with rasterio.open(tmp_file, "w", **out_profile) as dst:
+                strip = self.STRIP_HEIGHT
+
+                for out_row in range(0, out_h, strip):
+                    rows_to_write = min(strip, out_h - out_row)
+
+                    # Source rows: output row `out_row` maps to source row `out_row + b`.
+                    # Read one guard row above and below so np.gradient has valid neighbours.
+                    src_start = max(out_row + b - 1, 0)
+                    src_end   = min(out_row + b + rows_to_write + 1, src_h)
+
+                    win = Window(0, src_start, src_w, src_end - src_start)
+                    arr = src.read(1, window=win).astype(np.float64)
+
+                    dz_dx, dz_dy = np.gradient(arr, res, res)
+                    slope_full   = np.degrees(np.arctan(np.sqrt(dz_dx**2 + dz_dy**2)))
+
+                    # Extract only the rows corresponding to out_row..out_row+rows_to_write,
+                    # accounting for the guard row above and the buffer offset.
+                    inner_start = (out_row + b) - src_start
+                    inner_end   = inner_start + rows_to_write
+
+                    slope_strip = slope_full[inner_start:inner_end, b:b + out_w]
+
+                    # Pack slope into uint16: unpacked = packed * SCALE + OFFSET
+                    # scale_factor=0.1, add_offset=0.0 → 0.1° precision, range 0–6553.5°
+                    packed = np.clip(
+                        np.round((slope_strip - OFFSET) / SCALE), 0, np.iinfo(np.uint16).max
+                    ).astype(np.uint16)
+
+                    out_win = Window(0, out_row, out_w, rows_to_write)
+                    dst.write(packed, 1, window=out_win)
+
         return tmp_file, SCALE, OFFSET
 
     def _write_cog(
@@ -324,7 +451,7 @@ class DTMIngestor:
     ):
         """
         Convert an intermediate GeoTIFF to a web-optimised COG via gdal_translate:
-          - 256×256 blocks  (matches web-map tile size)
+          - 512×512 blocks  (matches web-map tile size)
           - ZSTD compression with PREDICTOR=2
           - Full AUTO overview pyramid with AVERAGE resampling
           - Optional scale_factor / add_offset stamped as band metadata tags
@@ -333,7 +460,7 @@ class DTMIngestor:
         cmd = [
             "gdal_translate",
             "-of", "COG",
-            "-co", "BLOCKSIZE=256",
+            "-co", "BLOCKSIZE=512",
             "-co", "COMPRESS=ZSTD",
             "-co", "LEVEL=9",
             "-co", "PREDICTOR=2",
@@ -375,15 +502,36 @@ class DTMIngestor:
         self.logger.info("Uploading %s → s3://%s/%s", local_path, self.r2_bucket, remote_key)
         self.r2_client.upload_file(str(local_path), self.r2_bucket, remote_key)
 
+    def upload_tiles(self):
+        """Upload all already-computed COG tiles to R2 without reprocessing."""
+        if not self.r2_client:
+            raise RuntimeError("R2 client not configured — call setup_r2_client() first.")
+
+        dirs = [
+            (self.slope_dir,  "slope_tiles"),
+            (self.relief_dir, "relief_tiles"),
+        ]
+        for local_dir, remote_prefix in dirs:
+            if not local_dir.exists():
+                self.logger.info("Skipping %s — directory does not exist.", local_dir)
+                continue
+            tiles = sorted(local_dir.glob("*.tif"))
+            if not tiles:
+                self.logger.info("Skipping %s — no .tif files found.", local_dir)
+                continue
+            self.logger.info("Uploading %d tile(s) from %s...", len(tiles), local_dir)
+            for tile in tqdm(tiles, desc=f"Uploading {remote_prefix}"):
+                self._upload_to_r2(tile, f"{remote_prefix}/{tile.name}")
+
 
 if __name__ == "__main__":
     load_dotenv()
 
     dtm_ingestor = DTMIngestor(
         stac_api="https://datacube.services.geo.ca/stac/api/",
-        geojson_path="./data/aoi/test_aoi.geojson",
+        geojson_path="./data/aoi/massive_laurentides.geojson",
         output_dir="./data/tiles/",
-        tile_size=8192,
+        tile_size=2**15,  # 32768 px → ~32 km tiles at 1 m/px
         compute_slope=False,
         compute_relief=True,
     )
@@ -393,4 +541,4 @@ if __name__ == "__main__":
         os.getenv("R2_S3_ENDPOINT"),
         os.getenv("R2_BUCKET"),
     )
-    dtm_ingestor.create_tiles()
+    dtm_ingestor.upload_tiles()

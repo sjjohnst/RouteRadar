@@ -1,6 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import { layerDefaults } from './config/layerDefaults.js';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { BACKEND_URL, QUEBEC_IMAGERY_URL, QUEBEC_PUBLIC_LAND_WMS_URL } from './config/api.js';
 
 // Shared layer/source identifiers so UI and tools stay in sync
 export const HRDEM_RELIEF_SOURCE_ID = 'hrdem-relief';
@@ -124,8 +125,12 @@ export function buildHRDEMWmsUrl(layer = 'dtm', style = '') {
 }
 
 // Build Quebec Public Land (PATP) WMS URL — routed through local proxy to avoid CORS
-export function buildQuebecPublicLandWmsUrl() {
-    return "/patp-wms" +
+export function buildQuebecPublicLandWmsUrl() {    
+    const base = import.meta.env.PROD
+        ? QUEBEC_PUBLIC_LAND_WMS_URL
+        : "/patp-wms";
+    return (
+        base +
         "?SERVICE=WMS" +
         "&VERSION=1.3.0" +
         "&REQUEST=GetMap" +
@@ -135,9 +140,9 @@ export function buildQuebecPublicLandWmsUrl() {
         "&TRANSPARENT=TRUE" +
         "&CRS=EPSG:3857" +
         "&WIDTH=256&HEIGHT=256" +
-        "&BBOX={bbox-epsg-3857}";
+        "&BBOX={bbox-epsg-3857}"
+    );
 }
-
 // Default relief rendering parameters
 export const DEFAULT_RELIEF_COLORMAP = 'cividis';
 
@@ -158,7 +163,7 @@ export async function buildReliefTileUrl(
     let scaleFactor = 0.01;  // fallback matches ingestion default
     let addOffset   = 0.0;
     try {
-        const res = await fetch('/relief/packing');
+        const res = await fetch(`${BACKEND_URL}/relief/packing`);
         if (res.ok) {
             const meta = await res.json();
             scaleFactor = meta.scale_factor;
@@ -176,13 +181,17 @@ export async function buildReliefTileUrl(
         rescale:      `${vminDN},${vmaxDN}`,
         colormap_name: colormap,
     });
-    return `/mosaicjson/tiles/WebMercatorQuad/{z}/{x}/{y}?${params.toString()}`;
+    // Use the "tiler://" custom protocol so MapLibre routes these tiles through
+    // registerTilerProtocol(), which retries 503s per-tile without touching the
+    // cache of already-loaded tiles (avoids blurry zoom-out fallback on retry).
+    const httpsUrl = `${BACKEND_URL}/mosaicjson/tiles/WebMercatorQuad/{z}/{x}/{y}?${params.toString()}`;
+    return httpsUrl.replace(/^https:\/\//, 'tiler://');
 }
 
 export async function initMap() {
-    const quebecImageryUrl = "https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue/Imagerie_GQ/default/GoogleMapsCompatibleExt2:epsg:3857/{z}/{y}/{x}.jpg";
+    const quebecImageryUrl = QUEBEC_IMAGERY_URL;
     const cartoLabelsUrl = "https://maps-cartes.services.geo.ca/server2_serveur2/rest/services/BaseMaps/CBMT_TXT_3857/MapServer/WMTS/tile/1.0.0/BaseMaps_CBMT_TXT_3857/default/default028mm/{z}/{y}/{x}.png";
-    
+
     // Build the relief tile URL (async — fetches packing metadata from backend)
     const reliefUrl = await buildReliefTileUrl();
     // HRDEM WMS URLs
@@ -200,6 +209,10 @@ export async function initMap() {
         dragRotate: false,
         pitchWithRotate: false,
         touchZoomRotate: false,
+        // Cap concurrent tile fetches to stay well under the Lambda account
+        // concurrency limit (10 on new accounts). Without this cap, a map pan
+        // fires 20+ simultaneous requests which overwhelm Lambda and produce 503s.
+        maxParallelImageRequests: 4,
         style: {
             version: 8,
             sources: {
@@ -252,4 +265,45 @@ export async function initMap() {
     map.addControl(scale, 'bottom-right');
 
     return map;
+}
+
+/**
+ * Register a custom protocol "tiler://" that wraps backend tile fetches with
+ * exponential-backoff retry on HTTP 503 (Lambda cold-start burst throttle).
+ *
+ * MapLibre's addProtocol intercepts the fetch for a single tile URL and lets
+ * us resolve/reject it ourselves — so only the specific failing tile is retried.
+ * All other already-loaded tiles stay in cache untouched, preventing the
+ * blurry-fallback problem caused by clearing the entire source cache.
+ *
+ * Call this once before initMap(), then use buildTilerUrl() to prefix tile
+ * template URLs with "tiler://" instead of "https://".
+ *
+ * @param {typeof import('maplibre-gl')} maplibregl
+ */
+export function registerTilerProtocol(maplibregl) {
+    maplibregl.addProtocol('tiler', async (params, abortController) => {
+        // Strip the custom scheme: "tiler://foo.com/..." → "https://foo.com/..."
+        const url = params.url.replace(/^tiler:\/\//, 'https://');
+
+        let delay = 400; // ms — initial back-off
+        const maxRetries = 4;
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            if (abortController.signal.aborted) {
+                throw new DOMException('Tile fetch aborted', 'AbortError');
+            }
+            const res = await fetch(url, { signal: abortController.signal });
+            if (res.status !== 503 || attempt === maxRetries) {
+                if (!res.ok) throw new Error(`Tile fetch failed: ${res.status}`);
+                const data = await res.arrayBuffer();
+                return { data };
+            }
+            // 503 — wait with jitter before retrying
+            await new Promise((r) =>
+                setTimeout(r, delay + Math.random() * delay)
+            );
+            delay = Math.min(delay * 2, 3000);
+        }
+    });
 }

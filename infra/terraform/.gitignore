@@ -1,0 +1,28 @@
+# Terraform working directory — provider binaries, modules, cached plans.
+.terraform/
+.terraform.lock.hcl
+
+# State files — use remote state (S3 + DynamoDB) for anything shared.
+# Local state is kept here during development but must never be committed
+# because it contains plaintext secrets from terraform.tfvars.
+terraform.tfstate
+terraform.tfstate.backup
+*.tfstate
+*.tfstate.*
+
+# Variable files with real secrets (example file is committed).
+*.tfvars
+!*.tfvars.example
+
+# Saved plan files.
+*.tfplan
+
+# Override files (local developer customisations).
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Crash log from a failed apply.
+crash.log
+crash.*.log

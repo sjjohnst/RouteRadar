@@ -1,5 +1,6 @@
 import './style.css'
-import { initMap, applyAoiFromGeojson } from './src/map.js'
+import maplibregl from 'maplibre-gl'
+import { initMap, applyAoiFromGeojson, registerTilerProtocol } from './src/map.js'
 import { setupReliefControls } from './src/ui/mosaicControls.js'
 import { setupHrdemWmsControls } from './src/ui/hrdemWmsControls.js'
 import { setupToolkitToggle } from './src/ui/toolkitToggle.js'
@@ -8,6 +9,10 @@ import { initDistanceMeasureTool } from './src/tools/distanceMeasure.js'
 import { setupLocationSearch } from './src/ui/locationSearch.js';
 import { setupQuebecPublicLandControls } from './src/ui/quebecPublicLandControls.js';
 import { setupInfoTool } from './src/ui/infoTool.js';
+
+// Register custom "tiler://" protocol for per-tile 503 retry with back-off.
+// Must be called before initMap() so the source URL is already handled.
+registerTilerProtocol(maplibregl);
 
 // Bootstrap map
 const map = await initMap();
