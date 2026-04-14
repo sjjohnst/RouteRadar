@@ -2,122 +2,64 @@
 
 app/main.py
 
-On startup the app:
-  1. Lists every *.tif object under the relief_tiles/ prefix in the
-     configured R2 bucket.
-  2. Builds a MosaicJSON from those S3 URIs using cogeo-mosaic.
-  3. Stores the resulting dict in app.state.mosaic_dict so the router
-     can instantiate R2MosaicBackend on each request.
-
-The mosaic is always rebuilt from scratch at startup, so adding new COGs
-to R2 only requires a service restart.
+Serves COG mosaic tiles and elevation data from Cloudflare R2 via TiTiler.
+The MosaicJSON is pre-built by ingestion/build_mosaic.py and fetched lazily
+on the first request to each Lambda container (see state.py).
 """
 
 import os
 import logging
 from contextlib import asynccontextmanager
 
-import boto3
-from botocore.config import Config
-from cogeo_mosaic.mosaic import MosaicJSON
+# --- CLOUDFLARE R2 WORKAROUND ---
+# Lambda env vars can't use the standard AWS_* names (they're reserved),
+# so we inject our R2 keys from R2_* vars before anything imports boto3/GDAL.
+# We also clear AWS_SESSION_TOKEN (set by the Lambda IAM role) because R2
+# doesn't support STS session tokens, and we set GDAL S3 config as real OS
+# env vars (rasterio ≥1.4 blocks setting AWS_* creds via rasterio.Env).
+if "R2_ACCESS_KEY_ID" in os.environ:
+    os.environ["AWS_ACCESS_KEY_ID"]     = os.environ["R2_ACCESS_KEY_ID"]
+    os.environ["AWS_SECRET_ACCESS_KEY"] = os.environ["R2_SECRET_ACCESS_KEY"]
+    # R2 only accepts its own region slugs (auto, wnam, enam, …), not AWS
+    # region names. Lambda injects AWS_REGION=ca-central-1; unset it entirely
+    # so GDAL/boto3 don't send it to R2. We pass region_name="auto" explicitly
+    # in our boto3 client (state.py), and GDAL uses the endpoint URL directly.
+    os.environ.pop("AWS_REGION", None)
+    os.environ.pop("AWS_DEFAULT_REGION", None)
+
+# Always clear the session token so GDAL/boto3 don't send it to R2.
+os.environ.pop("AWS_SESSION_TOKEN", None)
+
+# Set GDAL S3 driver config as real OS env vars — rasterio.Env blocks AWS_*
+# credential vars in newer versions, but GDAL reads these from the process env.
+_r2_endpoint_raw = os.environ.get("R2_S3_ENDPOINT", "")
+if _r2_endpoint_raw:
+    os.environ["AWS_S3_ENDPOINT"]      = _r2_endpoint_raw.replace("https://", "")
+os.environ["AWS_VIRTUAL_HOSTING"]      = "NO"
+os.environ["AWS_HTTPS"]                = "YES"
+
 from cogeo_mosaic.backends.memory import MemoryBackend
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from mangum import Mangum
 import rasterio
 
 from titiler.core.errors import DEFAULT_STATUS_CODES, add_exception_handlers
 from titiler.mosaic.errors import MOSAIC_STATUS_CODES
 
 from routers import mosaic
+from state import load_state, r2_endpoint
 
 logger = logging.getLogger("routeradar.titiler")
 logging.basicConfig(level=logging.INFO)
 
-COG_MINZOOM = int(os.environ.get("COG_MINZOOM", "7"))
-COG_MAXZOOM = int(os.environ.get("COG_MAXZOOM", "18"))
-COG_PREFIX  = os.environ.get("COG_PREFIX", "relief_tiles/")
-# Fallback packing constants — overridden at startup from actual COG metadata
-DEFAULT_SCALE_FACTOR = float(os.environ.get("COG_SCALE_FACTOR", "0.01"))
-DEFAULT_ADD_OFFSET   = float(os.environ.get("COG_ADD_OFFSET",   "0.0"))
-
-
-def _list_cog_s3_uris(bucket: str, prefix: str, endpoint_url: str) -> list[str]:
-    """Return a list of s3://<bucket>/<key> URIs for every .tif under prefix."""
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=endpoint_url,
-        config=Config(signature_version="s3v4"),
-    )
-    paginator = s3.get_paginator("list_objects_v2")
-    uris: list[str] = []
-    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-        for obj in page.get("Contents", []):
-            key: str = obj["Key"]
-            if key.lower().endswith(".tif") or key.lower().endswith(".tiff"):
-                uris.append(f"s3://{bucket}/{key}")
-    return uris
-
-
-def _build_mosaic(uris: list[str]) -> dict:
-    """Build and return a MosaicJSON dict from a list of COG S3 URIs."""
-    logger.info("Building MosaicJSON from %d COGs …", len(uris))
-    mosaic = MosaicJSON.from_urls(
-        uris,
-        minzoom=COG_MINZOOM,
-        maxzoom=COG_MAXZOOM,
-    )
-    logger.info(
-        "MosaicJSON built — zoom %d–%d, %d quadkeys",
-        mosaic.minzoom,
-        mosaic.maxzoom,
-        len(mosaic.tiles),
-    )
-    return mosaic.dict()
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Build the mosaic on startup; clean up on shutdown."""
-    bucket       = os.environ["R2_BUCKET"]
-    endpoint_url = os.environ["AWS_S3_ENDPOINT_URL"]
+    """No-op lifespan — state is loaded lazily on first request."""
+    yield
 
-    logger.info("Listing COGs in s3://%s/%s …", bucket, COG_PREFIX)
-    uris = _list_cog_s3_uris(bucket, COG_PREFIX, endpoint_url)
-    if not uris:
-        raise RuntimeError(
-            f"No COG files found in s3://{bucket}/{COG_PREFIX} — "
-            "check R2_BUCKET and COG_PREFIX."
-        )
-    logger.info("Found %d COG(s).", len(uris))
-
-    app.state.mosaic_dict = _build_mosaic(uris)
-
-    # Read scale_factor / add_offset from the first COG's dataset-level tags.
-    # These are stamped by gdal_translate -mo during ingestion.
-    scale_factor = DEFAULT_SCALE_FACTOR
-    add_offset   = DEFAULT_ADD_OFFSET
-    try:
-        with rasterio.Env(
-            AWS_S3_ENDPOINT=os.environ["AWS_S3_ENDPOINT_URL"].replace("https://", ""),
-            AWS_VIRTUAL_HOSTING=False,
-        ):
-            with rasterio.open(uris[0]) as src:
-                tags = src.tags()
-                scale_factor = float(tags.get("scale_factor", DEFAULT_SCALE_FACTOR))
-                add_offset   = float(tags.get("add_offset",   DEFAULT_ADD_OFFSET))
-        logger.info("Packing metadata: scale_factor=%s, add_offset=%s", scale_factor, add_offset)
-    except Exception as exc:
-        logger.warning("Could not read packing metadata from COG, using defaults: %s", exc)
-
-    app.state.scale_factor = scale_factor
-    app.state.add_offset   = add_offset
-
-    yield  # application runs here
-
-    app.state.mosaic_dict  = None
-    app.state.scale_factor = None
-    app.state.add_offset   = None
 
 app = FastAPI(
     title="RouteRadar TiTiler",
@@ -136,18 +78,23 @@ app.include_router(mosaic.router, prefix="/mosaicjson")
 add_exception_handlers(app, DEFAULT_STATUS_CODES)
 add_exception_handlers(app, MOSAIC_STATUS_CODES)
 
+# AWS Lambda entry point — Mangum translates Lambda events into ASGI requests.
+# When running locally with Uvicorn, this line is harmlessly ignored.
+handler = Mangum(app)
+
 
 @app.get("/relief/packing", summary="Packing metadata for relief COGs")
 async def relief_packing(request: Request):
     """
     Returns the scale_factor and add_offset stamped into the relief COGs.
-    Clients use these to convert physical units (metres) ↔ raw DN:
+    Clients use these to convert physical units (metres) <-> raw DN:
       physical = raw * scale_factor + add_offset
       raw      = (physical - add_offset) / scale_factor
     """
+    state = load_state()
     return JSONResponse({
-        "scale_factor": request.app.state.scale_factor,
-        "add_offset":   request.app.state.add_offset,
+        "scale_factor": state["scale_factor"],
+        "add_offset":   state["add_offset"],
     })
 
 
@@ -164,35 +111,32 @@ async def relief_point(
     Response schema:
       { "lng": float, "lat": float, "elevation_m": float | null }
     """
-    mosaic_dict = request.app.state.mosaic_dict
-    scale_factor = request.app.state.scale_factor
-    add_offset   = request.app.state.add_offset
+    state        = load_state()
+    mosaic_dict  = state["mosaic_dict"]
+    scale_factor = state["scale_factor"]
+    add_offset   = state["add_offset"]
 
     try:
         backend = MemoryBackend(mosaic_dict)
-        # get_assets returns a list of asset paths that cover the point
         assets = backend.get_assets(lng, lat)
         if not assets:
             return JSONResponse({"lng": lng, "lat": lat, "elevation_m": None})
 
-        # Try each asset in priority order; return the first valid pixel
-        with rasterio.Env(
-            AWS_S3_ENDPOINT=os.environ.get("AWS_S3_ENDPOINT_URL", "").replace("https://", ""),
-            AWS_VIRTUAL_HOSTING=False,
-        ):
-            for asset in assets:
-                try:
-                    with rasterio.open(asset) as src:
-                        # Sample returns an iterable of tuples, one per point
-                        vals = list(src.sample([(lng, lat)], indexes=1))
-                        raw = float(vals[0][0])
-                        # nodata guard — rasterio returns nodata as the raw value
-                        if src.nodata is not None and raw == src.nodata:
-                            continue
-                        elevation_m = raw * scale_factor + add_offset
-                        return JSONResponse({"lng": lng, "lat": lat, "elevation_m": round(elevation_m, 3)})
-                except Exception:
-                    continue
+        # GDAL S3 credentials are set as OS env vars at module load (top of file).
+        # rasterio ≥1.4 blocks AWS_* creds in rasterio.Env, so no Env wrapper needed.
+        for asset in assets:
+            try:
+                with rasterio.open(asset) as src:
+                    vals = list(src.sample([(lng, lat)], indexes=1))
+                    raw = float(vals[0][0])
+                    if src.nodata is not None and raw == src.nodata:
+                        continue
+                    elevation_m = raw * scale_factor + add_offset
+                    return JSONResponse({"lng": lng,
+                                         "lat": lat,
+                                         "elevation_m": round(elevation_m, 3)})
+            except Exception:
+                continue
 
         return JSONResponse({"lng": lng, "lat": lat, "elevation_m": None})
 
