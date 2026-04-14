@@ -61,18 +61,13 @@ def load_state() -> dict:
             (assets[0] for assets in tiles.values() if assets), None
         )
         if sample_uri:
-            gdal_endpoint = endpoint_url.replace("https://", "")
-            with rasterio.Env(
-                AWS_S3_ENDPOINT=gdal_endpoint,
-                AWS_VIRTUAL_HOSTING=False,
-                AWS_ACCESS_KEY_ID=os.environ["R2_ACCESS_KEY_ID"],
-                AWS_SECRET_ACCESS_KEY=os.environ["R2_SECRET_ACCESS_KEY"],
-                AWS_SESSION_TOKEN="",          # suppress Lambda role token
-            ):
-                with rasterio.open(sample_uri) as src:
-                    tags = src.tags()
-                    scale_factor = float(tags.get("scale_factor", DEFAULT_SCALE_FACTOR))
-                    add_offset   = float(tags.get("add_offset",   DEFAULT_ADD_OFFSET))
+            # GDAL S3 credentials are set as real OS env vars at startup (main.py).
+            # rasterio ≥1.4 blocks AWS_* credential vars inside rasterio.Env,
+            # so we open the COG directly — GDAL reads credentials from the process env.
+            with rasterio.open(sample_uri) as src:
+                tags = src.tags()
+                scale_factor = float(tags.get("scale_factor", DEFAULT_SCALE_FACTOR))
+                add_offset   = float(tags.get("add_offset",   DEFAULT_ADD_OFFSET))
             logger.info("Packing metadata: scale_factor=%s, add_offset=%s", scale_factor, add_offset)
     except Exception as exc:
         logger.warning("Could not read packing metadata from COG, using defaults: %s", exc)

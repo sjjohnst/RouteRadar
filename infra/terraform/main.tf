@@ -117,9 +117,9 @@ resource "aws_lambda_function" "backend" {
       R2_BUCKET            = var.r2_bucket
 
       # GDAL S3 driver — must point at R2, not real AWS.
-      AWS_S3_ENDPOINT  = replace(var.r2_s3_endpoint, "https://", "")
-      AWS_VIRTUAL_HOSTING = "FALSE"
-      AWS_HTTPS           = "TRUE"
+      AWS_S3_ENDPOINT     = replace(var.r2_s3_endpoint, "https://", "")
+      AWS_VIRTUAL_HOSTING = "NO"   # GDAL treats any non-empty string as true; use NO/0 not FALSE
+      AWS_HTTPS           = "YES"
 
       # Pre-built MosaicJSON location in R2.
       MOSAIC_OUTPUT_KEY = var.mosaic_key

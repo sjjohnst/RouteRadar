@@ -14,10 +14,29 @@ from contextlib import asynccontextmanager
 # --- CLOUDFLARE R2 WORKAROUND ---
 # Lambda env vars can't use the standard AWS_* names (they're reserved),
 # so we inject our R2 keys from R2_* vars before anything imports boto3/GDAL.
+# We also clear AWS_SESSION_TOKEN (set by the Lambda IAM role) because R2
+# doesn't support STS session tokens, and we set GDAL S3 config as real OS
+# env vars (rasterio ≥1.4 blocks setting AWS_* creds via rasterio.Env).
 if "R2_ACCESS_KEY_ID" in os.environ:
     os.environ["AWS_ACCESS_KEY_ID"]     = os.environ["R2_ACCESS_KEY_ID"]
     os.environ["AWS_SECRET_ACCESS_KEY"] = os.environ["R2_SECRET_ACCESS_KEY"]
-    os.environ["AWS_REGION"]            = os.environ.get("R2_REGION", "auto")
+    # R2 only accepts its own region slugs (auto, wnam, enam, …), not AWS
+    # region names. Lambda injects AWS_REGION=ca-central-1; unset it entirely
+    # so GDAL/boto3 don't send it to R2. We pass region_name="auto" explicitly
+    # in our boto3 client (state.py), and GDAL uses the endpoint URL directly.
+    os.environ.pop("AWS_REGION", None)
+    os.environ.pop("AWS_DEFAULT_REGION", None)
+
+# Always clear the session token so GDAL/boto3 don't send it to R2.
+os.environ.pop("AWS_SESSION_TOKEN", None)
+
+# Set GDAL S3 driver config as real OS env vars — rasterio.Env blocks AWS_*
+# credential vars in newer versions, but GDAL reads these from the process env.
+_r2_endpoint_raw = os.environ.get("R2_S3_ENDPOINT", "")
+if _r2_endpoint_raw:
+    os.environ["AWS_S3_ENDPOINT"]      = _r2_endpoint_raw.replace("https://", "")
+os.environ["AWS_VIRTUAL_HOSTING"]      = "NO"
+os.environ["AWS_HTTPS"]                = "YES"
 
 from cogeo_mosaic.backends.memory import MemoryBackend
 from fastapi import FastAPI, Query, Request
@@ -103,26 +122,21 @@ async def relief_point(
         if not assets:
             return JSONResponse({"lng": lng, "lat": lat, "elevation_m": None})
 
-        with rasterio.Env(
-            AWS_S3_ENDPOINT=r2_endpoint().replace("https://", ""),
-            AWS_VIRTUAL_HOSTING=False,
-            AWS_ACCESS_KEY_ID=os.environ["R2_ACCESS_KEY_ID"],
-            AWS_SECRET_ACCESS_KEY=os.environ["R2_SECRET_ACCESS_KEY"],
-            AWS_SESSION_TOKEN="",          # suppress Lambda role STS token
-        ):
-            for asset in assets:
-                try:
-                    with rasterio.open(asset) as src:
-                        vals = list(src.sample([(lng, lat)], indexes=1))
-                        raw = float(vals[0][0])
-                        if src.nodata is not None and raw == src.nodata:
-                            continue
-                        elevation_m = raw * scale_factor + add_offset
-                        return JSONResponse({"lng": lng,
-                                             "lat": lat,
-                                             "elevation_m": round(elevation_m, 3)})
-                except Exception:
-                    continue
+        # GDAL S3 credentials are set as OS env vars at module load (top of file).
+        # rasterio ≥1.4 blocks AWS_* creds in rasterio.Env, so no Env wrapper needed.
+        for asset in assets:
+            try:
+                with rasterio.open(asset) as src:
+                    vals = list(src.sample([(lng, lat)], indexes=1))
+                    raw = float(vals[0][0])
+                    if src.nodata is not None and raw == src.nodata:
+                        continue
+                    elevation_m = raw * scale_factor + add_offset
+                    return JSONResponse({"lng": lng,
+                                         "lat": lat,
+                                         "elevation_m": round(elevation_m, 3)})
+            except Exception:
+                continue
 
         return JSONResponse({"lng": lng, "lat": lat, "elevation_m": None})
 
