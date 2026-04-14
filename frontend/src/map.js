@@ -181,7 +181,11 @@ export async function buildReliefTileUrl(
         rescale:      `${vminDN},${vmaxDN}`,
         colormap_name: colormap,
     });
-    return `${BACKEND_URL}/mosaicjson/tiles/WebMercatorQuad/{z}/{x}/{y}?${params.toString()}`;
+    // Use the "tiler://" custom protocol so MapLibre routes these tiles through
+    // registerTilerProtocol(), which retries 503s per-tile without touching the
+    // cache of already-loaded tiles (avoids blurry zoom-out fallback on retry).
+    const httpsUrl = `${BACKEND_URL}/mosaicjson/tiles/WebMercatorQuad/{z}/{x}/{y}?${params.toString()}`;
+    return httpsUrl.replace(/^https:\/\//, 'tiler://');
 }
 
 export async function initMap() {
@@ -205,6 +209,10 @@ export async function initMap() {
         dragRotate: false,
         pitchWithRotate: false,
         touchZoomRotate: false,
+        // Cap concurrent tile fetches to stay well under the Lambda account
+        // concurrency limit (10 on new accounts). Without this cap, a map pan
+        // fires 20+ simultaneous requests which overwhelm Lambda and produce 503s.
+        maxParallelImageRequests: 4,
         style: {
             version: 8,
             sources: {
@@ -257,4 +265,45 @@ export async function initMap() {
     map.addControl(scale, 'bottom-right');
 
     return map;
+}
+
+/**
+ * Register a custom protocol "tiler://" that wraps backend tile fetches with
+ * exponential-backoff retry on HTTP 503 (Lambda cold-start burst throttle).
+ *
+ * MapLibre's addProtocol intercepts the fetch for a single tile URL and lets
+ * us resolve/reject it ourselves — so only the specific failing tile is retried.
+ * All other already-loaded tiles stay in cache untouched, preventing the
+ * blurry-fallback problem caused by clearing the entire source cache.
+ *
+ * Call this once before initMap(), then use buildTilerUrl() to prefix tile
+ * template URLs with "tiler://" instead of "https://".
+ *
+ * @param {typeof import('maplibre-gl')} maplibregl
+ */
+export function registerTilerProtocol(maplibregl) {
+    maplibregl.addProtocol('tiler', async (params, abortController) => {
+        // Strip the custom scheme: "tiler://foo.com/..." → "https://foo.com/..."
+        const url = params.url.replace(/^tiler:\/\//, 'https://');
+
+        let delay = 400; // ms — initial back-off
+        const maxRetries = 4;
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            if (abortController.signal.aborted) {
+                throw new DOMException('Tile fetch aborted', 'AbortError');
+            }
+            const res = await fetch(url, { signal: abortController.signal });
+            if (res.status !== 503 || attempt === maxRetries) {
+                if (!res.ok) throw new Error(`Tile fetch failed: ${res.status}`);
+                const data = await res.arrayBuffer();
+                return { data };
+            }
+            // 503 — wait with jitter before retrying
+            await new Promise((r) =>
+                setTimeout(r, delay + Math.random() * delay)
+            );
+            delay = Math.min(delay * 2, 3000);
+        }
+    });
 }

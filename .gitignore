@@ -11,6 +11,9 @@ frontend/dist/
 
 # Secrets
 .env
+.env.local
+.env.*.local
+frontend/.wrangler/
 
 # Logs
 logs/
