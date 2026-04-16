@@ -39,7 +39,7 @@
 .brand-and-tabs {
     display: flex;
     align-items: center;
-    gap: 0.7em;
+    gap: 2.0em;
 }
 /* ── Floating Layers Panel ───────────────────────────── */
 .floating-panel {
@@ -72,6 +72,10 @@
     margin-right: 0.5em;
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
+    min-width: 100px;
+    max-width: 140px;
+    text-align: center;
+    box-sizing: border-box;
 }
 .nav-tab[aria-pressed="true"] {
     background: #f9fafb;
@@ -111,8 +115,18 @@ body {
     z-index: 10;
 }
 
+/* Larger brand text and taller nav bar */
 #top-nav .brand {
     font-weight: 600;
+    font-size: 2.1rem;
+    letter-spacing: -0.2px;
+    line-height: 1.1;
+}
+
+#top-nav {
+    min-height: 3.rem;
+    padding-top: 0.7rem;
+    padding-bottom: 0.1rem;
 }
 
 .toolkit-nav-toggle {

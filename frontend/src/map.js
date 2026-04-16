@@ -186,25 +186,33 @@ export async function initMap() {
         pitchWithRotate: false,
         touchZoomRotate: false,
         // Cap concurrent tile fetches to stay well under the Lambda account
-        // concurrency limit (10 on new accounts). Without this cap, a map pan
-        // fires 20+ simultaneous requests which overwhelm Lambda and produce 503s.
         maxParallelImageRequests: 4,
         style: {
             version: 8,
             sources: {
-                'quebec-imagery': { type: 'raster', tiles: [quebecImageryUrl], tileSize: 256 },
-                'map-labels': { type: 'raster', tiles: [cartoLabelsUrl], tileSize: 256 },
-                // Relief COG mosaic source
+                'quebec-imagery': {
+                    type: 'raster',
+                    tiles: [quebecImageryUrl],
+                    tileSize: 256,
+                    attribution: 'Imagery: <a href="https://mrnf.gouv.qc.ca/repertoire-geographique/vue-aerienne-quebec-imagerie-continue/" target="_blank">Ministère des Ressources naturelles et des Forêts</a>'
+                },
                 [HRDEM_RELIEF_SOURCE_ID]: {
                     type: 'raster',
                     tiles: [reliefUrl],
                     tileSize: 256,
+                    attribution: 'Relief: <a href="https://ouvert.canada.ca/data/dataset/957782bf-847c-4644-a757-e383c0057995" target="_blank">Government of Canada</a>'
                 },
-                // Quebec Public Land WMS source
+                'map-labels': {
+                    type: 'raster',
+                    tiles: [cartoLabelsUrl],
+                    tileSize: 256,
+                    attribution: 'Labels: <a href="https://open.canada.ca/data/en/dataset/7dd22445-fa7f-49f4-ae9a-2cf70af8f875" target="_blank">Government of Canada</a>'
+                },
                 [QUEBEC_PUBLIC_LAND_SOURCE_ID]: {
                     type: 'raster',
                     tiles: [quebecPublicLandUrl],
                     tileSize: 256,
+                    attribution: 'Public Land: <a href="https://www.donneesquebec.ca/recherche/dataset/plans-d-affectation-du-territoire-public" target="_blank">Ministère des Ressources naturelles et des Forêts</a>'
                 }
             },
             layers: [

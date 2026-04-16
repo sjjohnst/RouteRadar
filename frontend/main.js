@@ -40,31 +40,40 @@ applyAoiFromGeojson(map).then(() => {
 
 const searchControl = new MapLibreSearchControl({
 	useMapFocusPoint: true,
-	mapFocusPointMinZoom: 12,
 	onResultSelected: feature => {
 		console.log('Search result selected:', feature);
-		if (feature.geometry && feature.geometry.coordinates) {
-			const [lng, lat] = feature.geometry.coordinates;
-			console.log('Result coordinates:', lng, lat);
-			let outOfBounds = false;
-			if (aoiBounds) {
-				const [minLng, minLat, maxLng, maxLat] = aoiBounds;
-				console.log('Checking bounds:', minLng, minLat, maxLng, maxLat);
-				if (lng < minLng || lng > maxLng || lat < minLat || lat > maxLat) {
-					console.log('Result is OUT OF BOUNDS');
-					return false;
-				} else {
-					console.log('Result is within bounds');
-					return true;
-				}
-			} else {
-				console.log('No AOI bounds to check against');
-			}
-		} else {
+		// Only allow flyTo for valid, in-bounds results
+		if (!feature.geometry || !feature.geometry.coordinates) {
 			console.log('No geometry/coordinates in result');
 			return false;
 		}
-	},
+		const [lng, lat] = feature.geometry.coordinates;
+		console.log('Result coordinates:', lng, lat);
+		let outOfBounds = false;
+		if (aoiBounds) {
+			const [minLng, minLat, maxLng, maxLat] = aoiBounds;
+			console.log('Checking bounds:', minLng, minLat, maxLng, maxLat);
+			if (lng < minLng || lng > maxLng || lat < minLat || lat > maxLat) {
+				outOfBounds = true;
+				console.log('Result is OUT OF BOUNDS');
+			} else {
+				console.log('Result is within bounds');
+			}
+		} else {
+			console.log('No AOI bounds to check against');
+		}
+		if (outOfBounds) {
+			// Show popup but do NOT allow any zoom
+			new maplibregl.Popup()
+				.setLngLat([lng, lat])
+				.setHTML('<b>Out of bounds</b>')
+				.addTo(map);
+			return false;
+		}
+		// Only here if valid and in bounds
+		map.flyTo({ center: [lng, lat], zoom: 13 });
+		return true;
+	}
 });
 map.addControl(searchControl, 'top-right');
 
