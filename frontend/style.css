@@ -170,6 +170,32 @@
     margin-right: 0;
 }
 
+/* GitHub link styles */
+.github-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f9fafb;
+    transition: color 0.2s, transform 0.2s;
+    padding: 0.5rem;
+    margin-left: auto;
+    margin-right: 1.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.github-link:hover {
+    color: #cbd5e1;
+    transform: scale(1.1);
+}
+
+.github-link svg {
+    width: 24px;
+    height: 24px;
+}
+
 .brand-and-tabs img {
     margin-right: 3px;
     height: 48px;
