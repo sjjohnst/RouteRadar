@@ -1,4 +1,5 @@
 import maplibregl from 'maplibre-gl';
+import { BACKEND_URL } from '../config/api.js';
 
 const WMS_BASE = '/patp-wms';
 const WMS_LAYER = 'Affectations surfaciques';
@@ -115,7 +116,7 @@ function formatCoords(lng, lat) {
 }
 
 async function fetchReliefValue(lng, lat, signal) {
-    const res = await fetch(`/relief/point?lng=${lng}&lat=${lat}`, { signal });
+    const res = await fetch(`${BACKEND_URL}/relief/point?lng=${lng}&lat=${lat}`, { signal });
     if (!res.ok) {
         throw new Error(`Relief point request failed: ${res.status}`);
     }
@@ -157,9 +158,13 @@ function buildPopupHtml({ coordsText, reliefText, publicInfo }) {
                 <span class="info-popup-label">Relief</span>
                 <span class="info-popup-value">${reliefText}</span>
             </div>
-            <details class="info-popup-details">
+            ${info.name === 'NULL'
+                ? `<div class="info-popup-row">
+                <span class="info-popup-value">Private</span>
+            </div>`
+                : `<details class="info-popup-details">
                 <summary>
-                    <span class="info-popup-label">Public Land</span>
+                    <span class="info-popup-label">Public/Protected:</span>
                     <span class="info-popup-value">${info.name}</span>
                 </summary>
                 <div class="info-popup-detail">
@@ -178,7 +183,8 @@ function buildPopupHtml({ coordsText, reliefText, publicInfo }) {
                     <span class="info-popup-detail-label">Date</span>
                     <span class="info-popup-detail-value">${info.date}</span>
                 </div>
-            </details>
+            </details>`
+            }
         </div>
     `;
 }
