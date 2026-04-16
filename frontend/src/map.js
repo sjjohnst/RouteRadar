@@ -226,9 +226,10 @@ export async function initMap() {
         zoom: 8
     });
 
-    // Add a metric scale bar in the bottom-right corner
-    const scale = new maplibregl.ScaleControl({ maxWidth: 150, unit: 'metric' });
-    map.addControl(scale, 'bottom-right');
+
+    // Add a metric scale bar in the bottom-left corner for better visibility
+    const scale = new maplibregl.ScaleControl({ maxWidth: 260, unit: 'metric' });
+    map.addControl(scale, 'bottom-left');
 
     return map;
 }

@@ -1,3 +1,16 @@
+/* ── Enhanced MapLibre Scale Bar ───────────────────────────── */
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl-scale {
+    background: rgba(249, 250, 251, 0.97);
+    color: #262727;
+    border-radius: 0.2em;
+    font-size: 1.5em;
+    font-weight: 600;
+    border: 1.5px solid #000000;
+    padding: 0.25em 0.2em;
+    margin: 0.3em 0.3em;
+    min-width: 90px;
+    text-align: center;
+}
 /* ── Floating Search Bar ───────────────────────────── */
 #floating-search-bar {
     position: absolute;
