@@ -200,7 +200,7 @@ export async function initMap() {
                     type: 'raster',
                     tiles: [reliefUrl],
                     tileSize: 256,
-                    attribution: 'Relief: <a href="https://ouvert.canada.ca/data/dataset/957782bf-847c-4644-a757-e383c0057995" target="_blank">Government of Canada</a>'
+                    attribution: 'Relief derived from: <a href="https://ouvert.canada.ca/data/dataset/957782bf-847c-4644-a757-e383c0057995" target="_blank">Government of Canada</a>'
                 },
                 'map-labels': {
                     type: 'raster',

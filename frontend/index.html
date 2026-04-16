@@ -12,7 +12,7 @@
             <div class="brand-and-tabs">
                 <span class="brand">RouteRadar</span>
                 <button id="nav-layers-tab" class="nav-tab" aria-pressed="true">Layers</button>
-                <button id="nav-tools-tab" class="nav-tab" aria-pressed="false">Tools</button>
+                <button id="nav-tools-tab" class="nav-tab" aria-pressed="true">Tools</button>
             </div>
         </header>
 
@@ -22,7 +22,7 @@
                 <!-- Relief colorbar overlay -->
                 <div id="relief-colorbar" class="relief-colorbar hidden">
                     <span id="relief-colorbar-max" class="colorbar-label">3.0 m</span>
-                    <canvas id="relief-colorbar-canvas" width="20" height="160"></canvas>
+                    <canvas id="relief-colorbar-canvas" width="40" height="220"></canvas>
                     <span id="relief-colorbar-min" class="colorbar-label">0.0 m</span>
                 </div>
         <!-- Floating Layers panel (hidden by default) -->
@@ -42,7 +42,7 @@
                 <div style="display: flex; align-items: center; width: 100%; justify-content: space-between;">
                     <label>
                         <input type="checkbox" id="toggle-relief">
-                        Relief
+                        Height Estimate
                     </label>
                     <div class="slider-with-value">
                         <input type="range" id="relief-opacity" min="0" max="1" step="0.01" value="0.80">
@@ -61,8 +61,8 @@
             </div>
         </div>
 
-        <!-- Floating Tools panel (hidden by default) -->
-        <div id="tools-panel" class="floating-panel hidden" style="top: 13.5em;">
+        <!-- Floating Tools panel -->
+        <div id="tools-panel" class="floating-panel" style="top: 13.5em;">
             <h2>Tools</h2>
             <div class="control-row tool-buttons">
                 <button id="tool-info" aria-pressed="false">Info</button>
