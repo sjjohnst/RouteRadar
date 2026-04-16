@@ -86,10 +86,6 @@
                         </label>
                         <span id="quebec-public-land-opacity-value" class="value-pill">0.7</span>
                     </div>
-                    <div class="control-row tool-buttons">
-                        <button id="tool-quebec-public-land-identify">Identify feature</button>
-                    </div>
-                    <div id="quebec-public-land-output" class="tool-output"></div>
                 </section>
 
                 <section class="toolkit-section">
@@ -121,11 +117,19 @@
                     <div class="control-row tool-buttons">
                         <button id="tool-marker">Drop marker</button>
                         <button id="tool-measure">Measure distance</button>
-                        <button id="tool-get-height">Get Height</button>
                     </div>
                     <div id="tool-output" class="tool-output">
                         <!-- Click/measure results will appear here -->
                     </div>
+                </section>
+
+                <section class="toolkit-section">
+                    <h2>Info Tool</h2>
+                    <p class="toolkit-hint">Toggle on, then click anywhere to drop an information placard on the map.</p>
+                    <div class="control-row tool-buttons">
+                        <button id="tool-info" aria-pressed="false">Click info</button>
+                    </div>
+                    <div id="info-tool-status" class="info-status">Activate the tool and click on the map.</div>
                 </section>
             </aside>
         </div>

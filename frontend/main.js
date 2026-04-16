@@ -7,8 +7,8 @@ import { setupToolkitToggle } from './src/ui/toolkitToggle.js'
 import { initClickLocateTool } from './src/tools/clickLocate.js'
 import { initDistanceMeasureTool } from './src/tools/distanceMeasure.js'
 import { setupLocationSearch } from './src/ui/locationSearch.js';
-import { setupGetHeightTool } from './src/ui/getHeightTool.js';
 import { setupQuebecPublicLandControls } from './src/ui/quebecPublicLandControls.js';
+import { setupInfoTool } from './src/ui/infoTool.js';
 
 // Register custom "tiler://" protocol for per-tile 503 retry with back-off.
 // Must be called before initMap() so the source URL is already handled.
@@ -22,8 +22,8 @@ await setupReliefControls(map);
 setupHrdemWmsControls(map);
 setupToolkitToggle();
 setupLocationSearch(map);
-setupGetHeightTool(map);
 setupQuebecPublicLandControls(map);
+setupInfoTool(map);
 initClickLocateTool(map);
 initDistanceMeasureTool(map);
 

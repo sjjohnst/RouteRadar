@@ -44,6 +44,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from mangum import Mangum
 import rasterio
+import morecantile
+from pyproj import Transformer
 
 from titiler.core.errors import DEFAULT_STATUS_CODES, add_exception_handlers
 from titiler.mosaic.errors import MOSAIC_STATUS_CODES
@@ -118,16 +120,27 @@ async def relief_point(
 
     try:
         backend = MemoryBackend(mosaic_dict)
-        assets = backend.get_assets(lng, lat)
+        # get_assets takes tile (x, y, z) coordinates, not lng/lat.
+        # Convert using the mosaic's quadkey zoom level.
+        tms = morecantile.tms.get("WebMercatorQuad")
+        tile = tms.tile(lng, lat, backend.quadkey_zoom)
+        assets = backend.get_assets(tile.x, tile.y, tile.z)
         if not assets:
             return JSONResponse({"lng": lng, "lat": lat, "elevation_m": None})
 
         # GDAL S3 credentials are set as OS env vars at module load (top of file).
         # rasterio ≥1.4 blocks AWS_* creds in rasterio.Env, so no Env wrapper needed.
+        # COGs are in EPSG:3857 — reproject the WGS-84 point before sampling.
+        _wgs84_to_3857 = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+        x_3857, y_3857 = _wgs84_to_3857.transform(lng, lat)
+
         for asset in assets:
             try:
                 with rasterio.open(asset) as src:
-                    vals = list(src.sample([(lng, lat)], indexes=1))
+                    b = src.bounds
+                    if not (b.left <= x_3857 <= b.right and b.bottom <= y_3857 <= b.top):
+                        continue
+                    vals = list(src.sample([(x_3857, y_3857)], indexes=1))
                     raw = float(vals[0][0])
                     if src.nodata is not None and raw == src.nodata:
                         continue
@@ -135,7 +148,8 @@ async def relief_point(
                     return JSONResponse({"lng": lng,
                                          "lat": lat,
                                          "elevation_m": round(elevation_m, 3)})
-            except Exception:
+            except Exception as asset_exc:
+                logger.warning("relief/point: failed reading asset %s: %s", asset, asset_exc)
                 continue
 
         return JSONResponse({"lng": lng, "lat": lat, "elevation_m": None})

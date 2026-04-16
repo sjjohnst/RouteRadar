@@ -4,47 +4,34 @@ A geospatial web application for rock climbing route development. RouteRadar ing
 
 ---
 
-## Features
-
-- **Interactive map** built with MapLibre GL, constrained to a configurable Area of Interest (AOI)
-- **DTM tile ingestion** — downloads 1m HRDEM data from the Canadian STAC API, computes slope & hillshade relief, and produces Cloud-Optimized GeoTIFFs (COGs)
-- **Cloudflare R2 storage** — COGs are uploaded to R2 and served on demand
-- **TiTiler mosaic backend** — FastAPI service builds a MosaicJSON from all COGs in R2 at startup and serves raster tiles
-- **Map toolkit** — click-to-query elevation, distance measurement, location search, and WMS layer toggles
-- **Fully Dockerized** — single `docker compose` command to run the full stack
-
----
-
 ## Architecture
 
 ```
-ingestion/          # Python pipeline: STAC → DTM → COG → R2
-backend/            # FastAPI + TiTiler: serves mosaic raster tiles from R2
-frontend/           # Vite + MapLibre GL: interactive map UI
+ingestion/    # Python pipeline: STAC → DTM → COG → Cloudflare R2
+backend/      # FastAPI + TiTiler: serves mosaic raster tiles from R2 (AWS Lambda)
+frontend/     # Vite + MapLibre GL: interactive map (Cloudflare Pages)
 ```
 
 **Data flow:**
 1. `DTMIngestor` queries the HRDEM STAC API for 1m DTM tiles over the AOI
 2. Each tile is reprojected to EPSG:3857, slope/relief computed, and written as a COG
 3. COGs are uploaded to a Cloudflare R2 bucket
-4. On startup, the backend lists all COGs in R2 and builds a MosaicJSON in memory
+4. On startup, the backend lists all COGs in R2, builds a MosaicJSON in memory, and serves tiles
 5. The frontend fetches raster tiles from the backend and renders them on the map
 
 ---
 
-## Prerequisites
+## Quick Start (Local Development)
+
+### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) & Docker Compose
-- A [Cloudflare R2](https://developers.cloudflare.com/r2/) bucket with COGs already ingested (see [Ingestion](#ingestion))
-- Python ≥ 3.13 (for running ingestion locally)
+- Node.js ≥ 22
+- A Cloudflare R2 bucket with COGs already ingested (see [Ingestion](#ingestion))
 
----
+### 1. Root environment variables
 
-## Getting Started
-
-### 1. Configure environment variables
-
-Create a `.env` file in the project root:
+Create `.env` in the project root (gitignored):
 
 ```env
 R2_ACCESS_KEY_ID=your_r2_access_key
@@ -53,23 +40,74 @@ R2_S3_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
 R2_BUCKET=your_bucket_name
 ```
 
-### 2. Run the stack
+### 2. Frontend environment variables
 
-```bash
-# Production
-docker compose up -d
+Create `frontend/.env.local` (gitignored):
 
-# Development (frontend hot-reload)
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+```env
+VITE_BACKEND_URL=http://localhost:8000
 ```
 
-The frontend is available at **http://localhost:5326** and the backend API at **http://localhost:8000**.
+> To develop against the live Lambda instead of a local backend, change this to the API Gateway URL.
+
+### 3. Start the backend
+
+```bash
+docker compose up --build
+```
+
+The backend (uvicorn, live-reload) starts at **http://localhost:8000**.
+Interactive API docs: **http://localhost:8000/docs**
+
+### 4. Start the frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The app is available at **http://localhost:5173**.
+
+---
+
+## How environment variables work
+
+`VITE_BACKEND_URL` is baked into the JS bundle at build time by Vite. Vite loads env files in this priority order (highest first):
+
+| File | Committed | Used when |
+|---|---|---|
+| `frontend/.env.local` | No (gitignored) | `npm run dev` — always overrides |
+| `frontend/.env.production` | Yes | `npm run build` / `npm run deploy` |
+
+This means:
+- **Local dev** always hits `localhost:8000` (from `.env.local`)
+- **Cloudflare Pages** always hits the Lambda (from `.env.production`, baked in at build time — no runtime config needed)
+
+---
+
+## Deployment
+
+### Frontend → Cloudflare Pages
+
+```bash
+cd frontend && npm run deploy
+```
+
+### Backend → AWS Lambda
+
+Build and push the production image to ECR, then apply Terraform:
+
+```bash
+cd infra/terraform && terraform apply
+```
+
+The production Dockerfile (`backend/Dockerfile`) uses the AWS Lambda Python runtime.
+The dev Dockerfile (`backend/Dockerfile.dev`) uses uvicorn — only used by `docker compose`.
 
 ---
 
 ## Ingestion
-
-The ingestion pipeline downloads DTM data and produces COGs ready for serving.
 
 ### Setup
 
@@ -85,35 +123,30 @@ pip install -e .
 python data_ingestion.py
 ```
 
-This will:
-1. Query the HRDEM STAC API for 1m DTM tiles covering the AOI defined in `data/aoi/`
-2. Reproject each tile to EPSG:3857 at 1m/px
-3. Compute **slope** and **hillshade relief** rasters
-4. Write Cloud-Optimized GeoTIFFs with ZSTD compression and overview pyramids
-5. Upload the COGs to the configured R2 bucket
+1. Queries the HRDEM STAC API for 1m DTM tiles covering the AOI in `data/aoi/`
+2. Reprojects each tile to EPSG:3857 at 1m/px
+3. Computes slope and hillshade relief rasters
+4. Writes Cloud-Optimized GeoTIFFs with ZSTD compression and overview pyramids
+5. Uploads COGs to the configured R2 bucket
 
 ### Tests
 
 ```bash
 cd ingestion
-pytest                          # unit tests only
-pytest -m integration           # includes live STAC API calls
+pytest                    # unit tests only
+pytest -m integration     # includes live STAC API calls
 ```
 
 ---
 
 ## Backend API
 
-The FastAPI backend exposes a TiTiler mosaic router:
-
 | Endpoint | Description |
 |---|---|
 | `GET /mosaicjson/tiles/{z}/{x}/{y}` | Raster tile (PNG/WebP) |
 | `GET /mosaicjson/tilejson.json` | TileJSON 3.0 metadata |
-| `GET /mosaicjson/point/{lon},{lat}` | Pixel value at a coordinate |
+| `GET /relief/point?lng=&lat=` | Elevation (metres) at a coordinate |
 | `GET /relief/packing` | `scale_factor` / `add_offset` metadata |
-
-Interactive docs available at **http://localhost:8000/docs**.
 
 ---
 
@@ -121,11 +154,11 @@ Interactive docs available at **http://localhost:8000/docs**.
 
 | Tool | Description |
 |---|---|
-| **Get Height** | Click any point on the map to query its elevation |
+| **Info Tool** | Click any point to query elevation and public land status |
 | **Distance Measure** | Click a series of points to measure path distance |
 | **Location Search** | Search for a place name and fly to it |
 | **WMS Layers** | Toggle DTM, slope, and hillshade WMS overlays |
-| **Mosaic Controls** | Adjust opacity and rendering of the COG mosaic layer |
+| **Mosaic Controls** | Adjust opacity and colour scaling of the COG mosaic layer |
 
 ---
 
@@ -133,34 +166,25 @@ Interactive docs available at **http://localhost:8000/docs**.
 
 ```
 RouteRadar/
-├── backend/                # FastAPI + TiTiler tile server
-│   ├── main.py             # App startup, mosaic build, R2 connection
-│   └── routers.py          # Mosaic tile/tilejson endpoints
-├── frontend/               # Vite + MapLibre GL web app
-│   └── src/
-│       ├── map.js          # Map init, AOI bounds, layer management
-│       ├── config/         # Layer style defaults
-│       ├── tools/          # Map interaction tools (measure, locate)
-│       └── ui/             # UI controls (height query, WMS toggles, search)
+├── .env                    # R2 credentials — gitignored
+├── docker-compose.yml      # Backend dev stack (uvicorn, live-reload)
+├── backend/
+│   ├── Dockerfile          # Production image (AWS Lambda runtime)
+│   ├── Dockerfile.dev      # Dev image (uvicorn)
+│   ├── main.py
+│   ├── routers.py
+│   └── state.py
+├── frontend/
+│   ├── .env.production     # Lambda URL
+│   ├── .env.local          # Local backend URL
+│   ├── src/
+│   │   ├── map.js
+│   │   ├── config/
+│   │   ├── tools/
+│   │   └── ui/
+│   └── main.js
 ├── ingestion/              # DTM download and COG generation pipeline
-│   ├── data_ingestion.py   # DTMIngestor class
-│   └── tests/              # Unit and integration tests
-├── experiments/            # Jupyter notebooks for exploratory analysis
-├── docker-compose.yml      # Production stack
-└── docker-compose.dev.yml  # Dev overrides (hot-reload)
+└── infra/terraform/        # AWS Lambda + API Gateway infrastructure
 ```
 
 ---
-
-## Contributing
-
-This project follows a [GitFlow](https://nvie.com/posts/a-successful-git-branching-model/) branching strategy:
-
-- `main` — stable, production-ready code only (PRs required)
-- `develop` — integration branch for ongoing work
-- `feature/<name>` — branch off `develop` for new features
-- `hotfix/<name>` — branch off `main` for urgent fixes
-
-Please open a pull request against `develop` for all new work.
-
-

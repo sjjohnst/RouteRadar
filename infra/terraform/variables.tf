@@ -39,7 +39,7 @@ variable "ecr_image_retention_count" {
 variable "lambda_memory_mb" {
   description = "Lambda memory in MB. Also controls vCPU allocation (1792 MB = 1 vCPU, 3008 MB ≈ 2 vCPUs)."
   type        = number
-  default     = 3008
+  default     = 1536
 }
 
 variable "lambda_timeout_s" {

@@ -31,11 +31,11 @@ export const layerDefaults = {
   relief: {
     id: 'hrdem-relief',
     layerId: 'hrdem-relief-layer',
-    visible: true,
+    visible: false,
     opacity: 0.8,
     colormap: 'cividis',
     // Physical display range in metres — converted to DN when building the tile URL
     vminMetres: 0.0,
-    vmaxMetres: 5.0,
+    vmaxMetres: 3.0,
   },
 };
