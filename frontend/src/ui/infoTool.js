@@ -264,12 +264,14 @@ export function setupInfoTool(map) {
                 const value = reliefResult.value;
                 reliefText = value === null ? 'N/A' : `${value.toFixed(2)} m`;
             } else if (!isAbortError(reliefResult.reason)) {
+                console.error('Info tool relief fetch failed:', reliefResult.reason);
                 hadError = true;
             }
 
             if (publicResult.status === 'fulfilled') {
                 publicInfo = normalisePublicLand(publicResult.value);
             } else if (!isAbortError(publicResult.reason)) {
+                console.error('Info tool public land fetch failed:', publicResult.reason);
                 hadError = true;
             }
 
