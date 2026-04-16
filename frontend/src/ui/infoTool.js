@@ -154,10 +154,6 @@ function buildPopupHtml({ coordsText, reliefText, publicInfo }) {
                 <span class="info-popup-label">Coordinate</span>
                 <span class="info-popup-value">${coordsText}</span>
             </div>
-            <div class="info-popup-row">
-                <span class="info-popup-label">Relief</span>
-                <span class="info-popup-value">${reliefText}</span>
-            </div>
             ${info.name === 'NULL'
                 ? `<div class="info-popup-row">
                 <span class="info-popup-value">Private</span>
@@ -247,7 +243,7 @@ export function setupInfoTool(map) {
         const coordsText = formatCoords(lng, lat);
         setStatus(STATUS_QUERYING);
 
-        const reliefPromise = fetchReliefValue(lng, lat, controller.signal);
+        const reliefPromise = Promise.resolve(null); // TODO: re-enable when backend relief is fixed
         const publicPromise = fetchPublicLandFeature(map, e.lngLat, controller.signal);
 
         let reliefText = 'N/A';
