@@ -14,8 +14,17 @@
                 <span class="brand">RouteRadar</span>
                 <button id="nav-layers-tab" class="nav-tab" aria-pressed="true">Layers</button>
                 <button id="nav-tools-tab" class="nav-tab" aria-pressed="true">Tools</button>
+                <button id="nav-help-tab" class="nav-tab" aria-pressed="false">Help</button>
             </div>
         </header>
+
+        <div id="help-popup" class="help-popup" style="display:none;">
+            <div class="help-popup-content">
+                <span id="help-close" class="help-close">&times;</span>
+                <h2>Help Guide</h2>
+                <div id="help-content"></div>
+            </div>
+        </div>
 
         <div id="layout">
             <div id="map-container">
@@ -78,6 +87,22 @@
     </div>
 
     <script type="module" src="./main.js"></script>
+        <script>
+        // Help popup logic
+        const helpTab = document.getElementById('nav-help-tab');
+        const helpPopup = document.getElementById('help-popup');
+        const helpClose = document.getElementById('help-close');
+        helpTab.addEventListener('click', (e) => {
+            e.stopPropagation();
+            helpPopup.style.display = 'block';
+        });
+        helpClose.addEventListener('click', () => {
+            helpPopup.style.display = 'none';
+        });
+        window.addEventListener('click', (e) => {
+            if (e.target === helpPopup) helpPopup.style.display = 'none';
+        });
+        </script>
     <script type="module" src="./src/ui/initControls.js"></script>
     <script type="module" src="./src/ui/layersPanel.js"></script>
     <script type="module" src="./src/ui/toolsPanel.js"></script>

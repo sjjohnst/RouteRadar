@@ -1,3 +1,101 @@
+
+/* Help popup styles */
+.help-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.25);
+    z-index: 999999 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
+.help-popup-content {
+    background: #fff;
+    border-radius: 1em;
+    padding: 2em 2.5em 1.5em 2.5em;
+    width: 520px;
+    height: 520px;
+    min-width: 320px;
+    min-height: 320px;
+    max-width: 90vw;
+    max-height: 90vh;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    overflow: hidden;
+}
+.help-close {
+    position: absolute;
+    top: 0.7em;
+    right: 1.1em;
+    font-size: 2em;
+    color: #888;
+    cursor: pointer;
+    font-weight: bold;
+}
+.help-close:hover {
+    color: #21532e;
+}
+
+/* Help guide content styles */
+.help-guide {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    padding-right: 0.5em;
+}
+
+.help-guide h2 {
+    margin-top: 0;
+    margin-bottom: 0.8em;
+    font-size: 1.5em;
+    color: #21532e;
+}
+
+.help-section {
+    margin-bottom: 1.2em;
+}
+
+.help-section h3 {
+    margin: 0 0 0.5em 0;
+    font-size: 1.1em;
+    color: #374151;
+    font-weight: 600;
+}
+
+.help-section p {
+    margin: 0 0 0.5em 0;
+    font-size: 0.95em;
+    color: #4b5563;
+    line-height: 1.4;
+}
+
+.help-section ul {
+    margin: 0 0 0 1.2em;
+    padding: 0;
+    font-size: 0.9em;
+    color: #4b5563;
+}
+
+.help-section li {
+    margin-bottom: 0.35em;
+    line-height: 1.4;
+}
+
+.help-section strong {
+    color: #21532e;
+    font-weight: 600;
+}
 /* ── Enhanced MapLibre Scale Bar ───────────────────────────── */
 .maplibregl-ctrl-bottom-left .maplibregl-ctrl-scale {
     background: rgba(249, 250, 251, 0.97);
@@ -64,6 +162,12 @@
 }
 .brand-and-tabs .nav-tab + .nav-tab {
     margin-left: 0.7em;
+}
+
+/* Style for nav-tab outside brand-and-tabs (Info tab) */
+#top-nav > .nav-tab {
+    margin-left: auto;
+    margin-right: 0;
 }
 
 .brand-and-tabs img {

@@ -8,6 +8,7 @@ import { initClickLocateTool } from './src/tools/clickLocate.js';
 import { initDistanceMeasureTool } from './src/tools/distanceMeasure.js';
 import { setupQuebecPublicLandControls } from './src/ui/quebecPublicLandControls.js';
 import { setupInfoTool } from './src/ui/infoTool.js';
+import { initHelpGuide } from './src/ui/helpGuide.js';
 
 // Register custom "tiler://" protocol for per-tile 503 retry with back-off.
 // Must be called before initMap() so the source URL is already handled.
@@ -83,6 +84,7 @@ setupQuebecPublicLandControls(map);
 setupInfoTool(map);
 initClickLocateTool(map);
 initDistanceMeasureTool(map);
+initHelpGuide();
 
 // Apply AOI constraints from GeoJSON
 applyAoiFromGeojson(map).catch((err) => {
