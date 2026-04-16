@@ -15,5 +15,5 @@ export default defineConfig({
       },
     },
   },
-  plugins: [cloudflare()]
+  plugins: [cloudflare({ workerEntrypoint: './src/worker.js' })]
 });
