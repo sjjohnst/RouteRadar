@@ -1,12 +1,11 @@
-import './style.css'
-import maplibregl from 'maplibre-gl'
-import { initMap, applyAoiFromGeojson, registerTilerProtocol } from './src/map.js'
-import { setupReliefControls } from './src/ui/mosaicControls.js'
-import { setupHrdemWmsControls } from './src/ui/hrdemWmsControls.js'
-import { setupToolkitToggle } from './src/ui/toolkitToggle.js'
-import { initClickLocateTool } from './src/tools/clickLocate.js'
-import { initDistanceMeasureTool } from './src/tools/distanceMeasure.js'
-import { setupLocationSearch } from './src/ui/locationSearch.js';
+import './style.css';
+import maplibregl from 'maplibre-gl';
+import { MapLibreSearchControl } from '@stadiamaps/maplibre-search-box';
+import '@stadiamaps/maplibre-search-box/dist/maplibre-search-box.css';
+import { initMap, applyAoiFromGeojson, registerTilerProtocol } from './src/map.js';
+import { setupReliefControls } from './src/ui/mosaicControls.js';
+import { initClickLocateTool } from './src/tools/clickLocate.js';
+import { initDistanceMeasureTool } from './src/tools/distanceMeasure.js';
 import { setupQuebecPublicLandControls } from './src/ui/quebecPublicLandControls.js';
 import { setupInfoTool } from './src/ui/infoTool.js';
 
@@ -17,11 +16,60 @@ registerTilerProtocol(maplibregl);
 // Bootstrap map
 const map = await initMap();
 
+// Add MapLibreSearchControl (autocomplete search box)
+let aoiBounds = null;
+// We'll log the bounds after map is ready
+
+// Helper to update AOI bounds from map
+function updateAoiBoundsFromMap() {
+	const b = map.getMaxBounds();
+	if (b) {
+		aoiBounds = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+		console.log('AOI bounds:', aoiBounds);
+	} else {
+		console.log('No AOI bounds set');
+	}
+}
+
+// After AOI is applied, update bounds
+applyAoiFromGeojson(map).then(() => {
+	updateAoiBoundsFromMap();
+}).catch((err) => {
+	console.error('Failed to apply AOI from GeoJSON', err);
+});
+
+const searchControl = new MapLibreSearchControl({
+	useMapFocusPoint: true,
+	mapFocusPointMinZoom: 12,
+	onResultSelected: feature => {
+		console.log('Search result selected:', feature);
+		if (feature.geometry && feature.geometry.coordinates) {
+			const [lng, lat] = feature.geometry.coordinates;
+			console.log('Result coordinates:', lng, lat);
+			let outOfBounds = false;
+			if (aoiBounds) {
+				const [minLng, minLat, maxLng, maxLat] = aoiBounds;
+				console.log('Checking bounds:', minLng, minLat, maxLng, maxLat);
+				if (lng < minLng || lng > maxLng || lat < minLat || lat > maxLat) {
+					console.log('Result is OUT OF BOUNDS');
+					return false;
+				} else {
+					console.log('Result is within bounds');
+					return true;
+				}
+			} else {
+				console.log('No AOI bounds to check against');
+			}
+		} else {
+			console.log('No geometry/coordinates in result');
+			return false;
+		}
+	},
+});
+map.addControl(searchControl, 'top-right');
+
 // Wire UI modules
 await setupReliefControls(map);
-setupHrdemWmsControls(map);
-setupToolkitToggle();
-setupLocationSearch(map);
 setupQuebecPublicLandControls(map);
 setupInfoTool(map);
 initClickLocateTool(map);

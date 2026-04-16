@@ -6,12 +6,6 @@ import { BACKEND_URL, QUEBEC_IMAGERY_URL, QUEBEC_PUBLIC_LAND_WMS_URL } from './c
 // Shared layer/source identifiers so UI and tools stay in sync
 export const HRDEM_RELIEF_SOURCE_ID = 'hrdem-relief';
 export const HRDEM_RELIEF_LAYER_ID = 'hrdem-relief-layer';
-export const HRDEM_WMS_DTM_SOURCE_ID = 'hrdem-wms-dtm';
-export const HRDEM_WMS_DTM_LAYER_ID = 'hrdem-wms-dtm-layer';
-export const HRDEM_WMS_SLOPE_SOURCE_ID = 'hrdem-wms-slope';
-export const HRDEM_WMS_SLOPE_LAYER_ID = 'hrdem-wms-slope-layer';
-export const HRDEM_WMS_HILLSHADE_SOURCE_ID = 'hrdem-wms-hillshade';
-export const HRDEM_WMS_HILLSHADE_LAYER_ID = 'hrdem-wms-hillshade-layer';
 export const QUEBEC_PUBLIC_LAND_SOURCE_ID = 'quebec-public-land';
 export const QUEBEC_PUBLIC_LAND_LAYER_ID = 'quebec-public-land-layer';
 
@@ -109,21 +103,6 @@ function computeGeojsonBbox(geojson) {
     return [minLng, minLat, maxLng, maxLat];
 }
 
-// Reusable function to build HRDEM WMS URL
-export function buildHRDEMWmsUrl(layer = 'dtm', style = '') {
-    let url = "https://datacube.services.geo.ca/wrapper/ogc/elevation-hrdem-mosaic?SERVICE=WMS" +
-        "&VERSION=1.3.0" +
-        "&REQUEST=GetMap" +
-        `&LAYERS=${layer}` +
-        (style ? `&STYLES=${style}` : '') +
-        "&FORMAT=image/png" +
-        "&TRANSPARENT=FALSE" +
-        "&CRS=EPSG:3857" +
-        "&WIDTH=256&HEIGHT=256" +
-        "&BBOX={bbox-epsg-3857}";
-    return url;
-}
-
 // Build Quebec Public Land (PATP) WMS URL — routed through local proxy to avoid CORS
 export function buildQuebecPublicLandWmsUrl() {    
     const base = import.meta.env.PROD
@@ -194,10 +173,7 @@ export async function initMap() {
 
     // Build the relief tile URL (async — fetches packing metadata from backend)
     const reliefUrl = await buildReliefTileUrl();
-    // HRDEM WMS URLs
-    const hrdemWmsDtmUrl = buildHRDEMWmsUrl('dtm', layerDefaults.dtm.style);
-    const hrdemWmsSlopeUrl = buildHRDEMWmsUrl('dtm-slope', layerDefaults.slope.style);
-    const hrdemWmsHillshadeUrl = buildHRDEMWmsUrl('dtm-hillshade', layerDefaults.hillshade.style);
+
     // Quebec Public Land WMS URL
     const quebecPublicLandUrl = buildQuebecPublicLandWmsUrl();
 
@@ -224,22 +200,7 @@ export async function initMap() {
                     tiles: [reliefUrl],
                     tileSize: 256,
                 },
-                // HRDEM WMS sources
-                [HRDEM_WMS_DTM_SOURCE_ID]: {
-                    type: 'raster',
-                    tiles: [hrdemWmsDtmUrl],
-                    tileSize: 256,
-                },
-                [HRDEM_WMS_SLOPE_SOURCE_ID]: {
-                    type: 'raster',
-                    tiles: [hrdemWmsSlopeUrl],
-                    tileSize: 256,
-                },
-                [HRDEM_WMS_HILLSHADE_SOURCE_ID]: {
-                    type: 'raster',
-                    tiles: [hrdemWmsHillshadeUrl],
-                    tileSize: 256,
-                },
+                // Quebec Public Land WMS source
                 [QUEBEC_PUBLIC_LAND_SOURCE_ID]: {
                     type: 'raster',
                     tiles: [quebecPublicLandUrl],
@@ -249,9 +210,6 @@ export async function initMap() {
             layers: [
                 { id: 'base-imagery', type: 'raster', source: 'quebec-imagery' },
                 { id: HRDEM_RELIEF_LAYER_ID, type: 'raster', source: HRDEM_RELIEF_SOURCE_ID, paint: { 'raster-opacity': layerDefaults.relief.opacity }, layout: { visibility: layerDefaults.relief.visible ? 'visible' : 'none' } },
-                { id: HRDEM_WMS_DTM_LAYER_ID, type: 'raster', source: HRDEM_WMS_DTM_SOURCE_ID, paint: { 'raster-opacity': layerDefaults.dtm.opacity }, layout: { visibility: layerDefaults.dtm.visible ? 'visible' : 'none' } },
-                { id: HRDEM_WMS_SLOPE_LAYER_ID, type: 'raster', source: HRDEM_WMS_SLOPE_SOURCE_ID, paint: { 'raster-opacity': layerDefaults.slope.opacity }, layout: { visibility: layerDefaults.slope.visible ? 'visible' : 'none' } },
-                { id: HRDEM_WMS_HILLSHADE_LAYER_ID, type: 'raster', source: HRDEM_WMS_HILLSHADE_SOURCE_ID, paint: { 'raster-opacity': layerDefaults.hillshade.opacity }, layout: { visibility: layerDefaults.hillshade.visible ? 'visible' : 'none' } },
                 { id: QUEBEC_PUBLIC_LAND_LAYER_ID, type: 'raster', source: QUEBEC_PUBLIC_LAND_SOURCE_ID, paint: { 'raster-opacity': layerDefaults.quebecPublicLand.opacity }, layout: { visibility: layerDefaults.quebecPublicLand.visible ? 'visible' : 'none' } },
                 { id: 'labels-layer', type: 'raster', source: 'map-labels' },
             ]

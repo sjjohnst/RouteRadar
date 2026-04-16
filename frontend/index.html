@@ -9,11 +9,11 @@
 <body>
     <div id="app">
         <header id="top-nav">
-            <div class="brand">RouteRadar</div>
-            <nav class="nav-links">
-                <!-- Placeholder for future navigation items -->
-            </nav>
-            <button id="toolkit-toggle-nav" class="toolkit-nav-toggle" aria-label="Toggle tools panel">Hide tools</button>
+            <div class="brand-and-tabs">
+                <span class="brand">RouteRadar</span>
+                <button id="nav-layers-tab" class="nav-tab" aria-pressed="true">Layers</button>
+                <button id="nav-tools-tab" class="nav-tab" aria-pressed="false">Tools</button>
+            </div>
         </header>
 
         <div id="layout">
@@ -26,116 +26,63 @@
                     <span id="relief-colorbar-min" class="colorbar-label">0.0 m</span>
                 </div>
                 <div id="map-attribution">
-                    Imagerie @ Gouvernement du Québec. Elevation data @ Government of Canada (HRDEM).
+                    </div>
+                </section>
+                <!-- Layers panel is now floating, not in sidebar -->
+        <!-- Floating Layers panel (hidden by default) -->
+        <div id="layers-panel" class="floating-panel">
+            <h2>Layers</h2>
+            <div class="control-row">
+                <label>
+                    <input type="checkbox" id="toggle-quebec-public-land">
+                    Public Land
+                </label>
+                <div class="slider-with-value" style="margin-left: 1em;">
+                    <input type="range" id="quebec-public-land-opacity" min="0" max="1" step="0.01" value="0.70">
+                        <span id="quebec-public-land-opacity-value" class="value-pill">0.70</span>
                 </div>
             </div>
-
-            <aside id="toolkit-panel">
-                <section class="toolkit-section">
-                    <div class="control-row" style="margin-bottom: 1em;">
-                        <input type="text" id="location-search-input" placeholder="Search location..." style="width: 250px;">
-                        <button id="location-search-btn">Search</button>
-                    </div>
-                    <h1 class="toolkit-title">Toolkit</h1>
-                    <p class="toolkit-subtitle">Guide</p>
-                                        <ul class="toolkit-hint" style="padding-left: 1.2rem; margin-top: 0.25rem;">
-                        <li>Left-drag: pan</li>
-                        <li>Scroll wheel / trackpad: zoom in/out</li>
-                    </ul>
-                </section>
-                
-                <section class="toolkit-section">
-                    <h2>HRDEM WMS Tiles</h2>
-                    <div class="control-row">
-                        <span style="min-width: 70px;">DTM:</span>
-                        <input type="checkbox" id="toggle-hrdem-wms-dtm">
-                        <label style="margin-left: 1em;">
-                            Opacity:
-                            <input type="range" id="hrdem-wms-dtm-opacity" min="0" max="1" step="0.01" value="0.8">
-                        </label>
-                        <span id="hrdem-wms-dtm-opacity-value" class="value-pill">0.8</span>
-                    </div>
-                    <div class="control-row">
-                        <span style="min-width: 70px;">Slope:</span>
-                        <input type="checkbox" id="toggle-hrdem-wms-slope">
-                        <label style="margin-left: 1em;">
-                            Opacity:
-                            <input type="range" id="hrdem-wms-slope-opacity" min="0" max="1" step="0.01" value="0.8">
-                        </label>
-                        <span id="hrdem-wms-slope-opacity-value" class="value-pill">0.8</span>
-                    </div>
-                    <div class="control-row">
-                        <span style="min-width: 70px;">Hillshade:</span>
-                        <input type="checkbox" id="toggle-hrdem-wms-hillshade">
-                        <label style="margin-left: 1em;">
-                            Opacity:
-                            <input type="range" id="hrdem-wms-hillshade-opacity" min="0" max="1" step="0.01" value="0.8">
-                        </label>
-                        <span id="hrdem-wms-hillshade-opacity-value" class="value-pill">0.8</span>
-                    </div>
-                </section>
-
-                <section class="toolkit-section">
-                    <h2>Quebec Public Land</h2>
-                    <div class="control-row">
-                        <input type="checkbox" id="toggle-quebec-public-land">
-                        <label for="toggle-quebec-public-land" style="margin-left: 0.5em;">Show</label>
-                        <label style="margin-left: 1em;">
-                            Opacity:
-                            <input type="range" id="quebec-public-land-opacity" min="0" max="1" step="0.01" value="0.7">
-                        </label>
-                        <span id="quebec-public-land-opacity-value" class="value-pill">0.7</span>
-                    </div>
-                </section>
-
-                <section class="toolkit-section">
-                    <h2>HRDEM Relief</h2>
+            <div class="control-row" style="margin-top: 0.75em; flex-direction: column; align-items: flex-start; gap: 0.5em;">
+                <div style="display: flex; align-items: center; width: 100%; justify-content: space-between;">
                     <label>
                         <input type="checkbox" id="toggle-relief">
-                        Show
+                        Relief
                     </label>
-                    <div class="control-row">
-                        <label>
-                            Opacity:
-                            <input type="range" id="relief-opacity" min="0" max="1" step="0.01" value="0.5">
-                        </label>
-                        <span id="relief-opacity-value" class="value-pill">0.5</span>
+                    <div class="slider-with-value">
+                        <input type="range" id="relief-opacity" min="0" max="1" step="0.01" value="0.80">
+                        <span id="relief-opacity-value" class="value-pill">0.800</span>
                     </div>
-                    <div class="control-row">
-                        <label for="relief-vmin">Min (m):</label>
+                </div>
+                <div class="relief-rescale-row" style="display: flex; align-items: center; gap: 0.5em; margin-top: 0.3em;">
+                    <div style="margin-left:auto; display: flex; align-items: center; gap: 0.5em;">
+                        <label for="relief-vmin" style="font-size: 0.85em;">Min</label>
                         <input type="number" id="relief-vmin" class="relief-bound-input" step="0.1" value="0">
-                        <label for="relief-vmax">Max (m):</label>
+                        <label for="relief-vmax" style="font-size: 0.85em;">Max</label>
                         <input type="number" id="relief-vmax" class="relief-bound-input" step="0.1" value="3">
-                        <button id="relief-rescale-apply">Apply</button>
+                        <button id="relief-apply-scale" style="margin-left: 0.5em;">Apply</button>
                     </div>
-                </section>
+                </div>
+            </div>
+        </div>
 
-                <section class="toolkit-section">
-                    <h2>Location &amp; Measurement</h2>
-                    <p class="toolkit-hint">Use the controls below to drop markers and, in future, measure distances.</p>
-
-                    <div class="control-row tool-buttons">
-                        <button id="tool-marker">Drop marker</button>
-                        <button id="tool-measure">Measure distance</button>
-                    </div>
-                    <div id="tool-output" class="tool-output">
-                        <!-- Click/measure results will appear here -->
-                    </div>
-                </section>
-
-                <section class="toolkit-section">
-                    <h2>Info Tool</h2>
-                    <p class="toolkit-hint">Toggle on, then click anywhere to drop an information placard on the map.</p>
-                    <div class="control-row tool-buttons">
-                        <button id="tool-info" aria-pressed="false">Click info</button>
-                    </div>
-                    <div id="info-tool-status" class="info-status">Activate the tool and click on the map.</div>
-                </section>
+        <!-- Floating Tools panel (hidden by default) -->
+        <div id="tools-panel" class="floating-panel hidden" style="top: 13.5em;">
+            <h2>Tools</h2>
+            <div class="control-row tool-buttons">
+                <button id="tool-info" aria-pressed="false">Info</button>
+                <button id="tool-marker">Marker</button>
+                <button id="tool-measure">Measure</button>
+            </div>
+            <div id="tool-output" class="tool-output"></div>
+            <div id="info-tool-status" class="info-status" style="display:none"></div>
+        </div>
             </aside>
         </div>
     </div>
 
     <script type="module" src="./main.js"></script>
     <script type="module" src="./src/ui/initControls.js"></script>
+    <script type="module" src="./src/ui/layersPanel.js"></script>
+    <script type="module" src="./src/ui/toolsPanel.js"></script>
 </body>
 </html>
