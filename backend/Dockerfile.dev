@@ -1,0 +1,28 @@
+# Backend dev Dockerfile — runs the FastAPI app with Uvicorn (not Lambda runtime)
+# Use this with docker-compose.dev.yml for local development.
+# The production Dockerfile uses CMD ["main.handler"] for the Lambda runtime.
+# Titiler custom API Dockerfile
+FROM ghcr.io/developmentseed/titiler:latest
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir "titiler-application==1.1.1" "mangum>=0.10.0" uvicorn[standard]
+
+COPY __init__.py state.py routers.py main.py ./
+
+ENV PYTHONPATH=/app \
+    WEB_CONCURRENCY=8 \
+    GDAL_CACHEMAX=2048 \
+    GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR \
+    CPL_VSIL_CURL_ALLOWED_EXTENSIONS=.tif,.tiff,.vrt,.ovr \
+    GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=YES \
+    GDAL_HTTP_MULTIPLEX=YES \
+    GDAL_HTTP_VERSION=2 \
+    GDAL_BAND_BLOCK_CACHE=HASHSET \
+    GDAL_CACHEMAX=512 \
+    CPL_VSIL_CURL_CACHE_SIZE=200000000 \
+    VSI_CACHE=TRUE \
+    VSI_CACHE_SIZE=536870912
+
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
