@@ -14,7 +14,6 @@
                 <img src="/logo.png" alt="Logo" style="height: 56px; vertical-align: middle; margin-right: 0px;">
                 <span class="brand">RouteRadar</span>
                 <button id="nav-layers-tab" class="nav-tab" aria-pressed="true">Layers</button>
-                <button id="nav-tools-tab" class="nav-tab" aria-pressed="true">Tools</button>
                 <button id="nav-help-tab" class="nav-tab" aria-pressed="false">Help</button>
             </div>
             <a href="https://github.com/sjjohnst/RouteRadar" target="_blank" rel="noopener" class="github-link" aria-label="GitHub Repository">
@@ -77,17 +76,28 @@
             </div>
         </div>
 
-        <!-- Floating Tools panel -->
-        <div id="tools-panel" class="floating-panel" style="top: 13.5em;">
-            <h2>Tools</h2>
-            <div class="control-row tool-buttons">
-                <button id="tool-info" aria-pressed="false">Info</button>
-                <button id="tool-marker">Marker</button>
-                <button id="tool-measure">Measure</button>
-            </div>
-            <div id="tool-output" class="tool-output"></div>
-            <div id="info-tool-status" class="info-status" style="display:none"></div>
+        <!-- GIS icon toolbar (map overlay) -->
+        <div id="gis-toolbar" class="gis-toolbar">
+            <button id="gis-zoom-in" class="gis-btn" title="Zoom in">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <button id="gis-zoom-out" class="gis-btn" title="Zoom out">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <div class="gis-divider"></div>
+            <button id="tool-marker" class="gis-btn gis-tool-btn" title="Drop marker" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+            </button>
+            <button id="tool-measure" class="gis-btn gis-tool-btn" title="Measure distance" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="8" width="20" height="8" rx="1.5"/><line x1="6" y1="12" x2="6" y2="16"/><line x1="10" y1="12" x2="10" y2="16"/><line x1="14" y1="12" x2="14" y2="16"/><line x1="18" y1="12" x2="18" y2="16"/></svg>
+            </button>
+            <button id="tool-info" class="gis-btn gis-tool-btn" title="Query info" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+            </button>
         </div>
+        <!-- Hidden output elements kept for tool JS -->
+        <div id="tool-output" style="display:none"></div>
+        <div id="info-tool-status" class="info-status" style="display:none"></div>
             </aside>
         </div>
     </div>

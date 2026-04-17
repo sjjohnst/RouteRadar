@@ -86,6 +86,10 @@ initClickLocateTool(map);
 initDistanceMeasureTool(map);
 initHelpGuide();
 
+// GIS toolbar zoom buttons
+document.getElementById('gis-zoom-in')?.addEventListener('click', () => map.zoomIn());
+document.getElementById('gis-zoom-out')?.addEventListener('click', () => map.zoomOut());
+
 // Apply AOI constraints from GeoJSON
 applyAoiFromGeojson(map).catch((err) => {
 	console.error('Failed to apply AOI from GeoJSON', err);
