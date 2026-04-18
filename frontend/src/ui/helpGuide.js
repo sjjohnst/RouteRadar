@@ -21,7 +21,8 @@ export function initHelpGuide() {
             <div class="help-section">
                 <h3>Layers</h3>
                 <ul>
-                    <li><strong>Plans d'affectation du territoire public (Public Land):</strong> Quebec government dataset of public land designations. <a href="https://www.donneesquebec.ca/recherche/dataset/plans-d-affectation-du-territoire-public" target="_blank" rel="noopener">View source</a></li>
+                    <li><strong>Base Map:</strong> Aerial imagery from Gouvernement du Québec. <a href="https://mrnf.gouv.qc.ca/repertoire-geographique/vue-aerienne-quebec-imagerie-continue/" target="_blank" rel="noopener">View source</a></li>
+                    <li><strong>Plans d'affectation du territoire public (Public Land):</strong> Québec government dataset of public land designations. <a href="https://www.donneesquebec.ca/recherche/dataset/plans-d-affectation-du-territoire-public" target="_blank" rel="noopener">View source</a></li>
                     <li><strong>Height Estimate (Relief):</strong> Elevation difference (relief) calculated from <a href="https://open.canada.ca/data/en/dataset/957782bf-847c-4644-a757-e383c0057995" target="_blank" rel="noopener">HRDEM 1m resolution data</a>.</li>
                 </ul>
             </div>

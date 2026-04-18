@@ -226,6 +226,15 @@ export async function initMap() {
         zoom: 8
     });
 
+    // Remove the default attribution control if present
+    map.removeControl(map._controls.find(c => c instanceof maplibregl.AttributionControl));
+
+    // Add attribution control with custom prefix and compact styling
+    const attributionControl = new maplibregl.AttributionControl({
+        compact: true,
+        customAttribution: '© RouteRadar'
+    });
+    map.addControl(attributionControl, 'bottom-right');
 
     // Add a metric scale bar in the bottom-left corner for better visibility
     const scale = new maplibregl.ScaleControl({ maxWidth: 260, unit: 'metric' });

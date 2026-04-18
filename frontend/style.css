@@ -388,51 +388,6 @@ body {
     background: rgba(255,255,255,0.15);
     margin: 3px 0;
 }
-/* ── Legend Panel (Public Land + Relief Colorbar) ───────────────── */
-.legend-panel {
-    position: absolute;
-    top: 1.5em;
-    right: 1.5em;
-    z-index: 40;
-    min-width: 160px;
-    max-width: 220px;
-    background: rgba(240, 240, 240, 0.95);
-    border-radius: 0.5em;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.13);
-    padding: 0.5em 0.75em;
-    border: 1px solid #000000;
-}
-.legend-panel .legend-title {
-    margin: 0 0 0.4em 0;
-    font-size: 0.95em;
-    color: #111827;
-    font-weight: 700;
-}
-.legend-panel .legend-content {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6em;
-    align-items: center;
-}
-.legend-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.25em;
-}
-.legend-image {
-    width: 140px;
-    height: auto;
-    display: block;
-    border: 1px solid rgba(0,0,0,0.06);
-    background: #fff;
-    padding: 0.15em;
-    border-radius: 0.25em;
-}
-.legend-label {
-    font-size: 0.85em;
-    color: #374151;
-}
 
 /* Also apply legend styles when placed inside the floating Layers panel */
 .floating-panel .legend-title {
@@ -460,12 +415,12 @@ body {
 }
 .floating-panel .legend-image {
     width: auto;
-    height: 100%;
-    max-width: 160px; /* larger image */
+    height: 80%;
+    max-width: 200px; /* larger image */
     display: block;
-    border: 1px solid rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.5);
     background: #fff;
-    padding: 0.15em;
+    padding: 0.5em;
     border-radius: 0.25em;
     object-fit: contain;
 }
