@@ -3,139 +3,135 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer-when-downgrade">
     <title>RouteRadar</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
 </head>
-<!-- <link rel="icon" type="image/png" href="/logo.png"> -->
 <body>
     <div id="app">
         <header id="top-nav">
-            <div class="brand">RouteRadar</div>
-            <nav class="nav-links">
-                <!-- Placeholder for future navigation items -->
-            </nav>
-            <button id="toolkit-toggle-nav" class="toolkit-nav-toggle" aria-label="Toggle tools panel">Hide tools</button>
+            <div class="brand-and-tabs">
+                <img src="/logo.png" alt="Logo" style="height: 56px; vertical-align: middle; margin-right: 0px;">
+                <span class="brand">RouteRadar</span>
+                <button id="nav-layers-tab" class="nav-tab" aria-pressed="true">Layers</button>
+                <button id="nav-help-tab" class="nav-tab" aria-pressed="false">Help</button>
+            </div>
+            <a href="https://github.com/sjjohnst/RouteRadar" target="_blank" rel="noopener" class="github-link" aria-label="GitHub Repository">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.744.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+            </a>
         </header>
+
+        <div id="help-popup" class="help-popup" style="display:none;">
+            <div class="help-popup-content">
+                <span id="help-close" class="help-close">&times;</span>
+                <h2>Help Guide</h2>
+                <div id="help-content"></div>
+            </div>
+        </div>
 
         <div id="layout">
             <div id="map-container">
                 <div id="map"></div>
-                <!-- Relief colorbar overlay -->
-                <div id="relief-colorbar" class="relief-colorbar hidden">
-                    <span id="relief-colorbar-max" class="colorbar-label">3.0 m</span>
-                    <canvas id="relief-colorbar-canvas" width="20" height="160"></canvas>
-                    <span id="relief-colorbar-min" class="colorbar-label">0.0 m</span>
-                </div>
-                <div id="map-attribution">
-                    Imagerie @ Gouvernement du Québec. Elevation data @ Government of Canada (HRDEM).
+                <!-- Legend moved into Layers panel (see below) -->
+        <!-- Floating Layers panel (hidden by default) -->
+        <div id="layers-panel" class="floating-panel">
+            <h2>Layers</h2>
+            <div class="control-row">
+                <label>
+                    <input type="checkbox" id="toggle-quebec-public-land">
+                    Public Land
+                </label>
+                <div class="slider-with-value" style="margin-left: 1em;">
+                    <input type="range" id="quebec-public-land-opacity" min="0" max="1" step="0.01" value="0.70">
+                        <span id="quebec-public-land-opacity-value" class="value-pill">0.70</span>
                 </div>
             </div>
-
-            <aside id="toolkit-panel">
-                <section class="toolkit-section">
-                    <div class="control-row" style="margin-bottom: 1em;">
-                        <input type="text" id="location-search-input" placeholder="Search location..." style="width: 250px;">
-                        <button id="location-search-btn">Search</button>
-                    </div>
-                    <h1 class="toolkit-title">Toolkit</h1>
-                    <p class="toolkit-subtitle">Guide</p>
-                                        <ul class="toolkit-hint" style="padding-left: 1.2rem; margin-top: 0.25rem;">
-                        <li>Left-drag: pan</li>
-                        <li>Scroll wheel / trackpad: zoom in/out</li>
-                    </ul>
-                </section>
-                
-                <section class="toolkit-section">
-                    <h2>HRDEM WMS Tiles</h2>
-                    <div class="control-row">
-                        <span style="min-width: 70px;">DTM:</span>
-                        <input type="checkbox" id="toggle-hrdem-wms-dtm">
-                        <label style="margin-left: 1em;">
-                            Opacity:
-                            <input type="range" id="hrdem-wms-dtm-opacity" min="0" max="1" step="0.01" value="0.8">
-                        </label>
-                        <span id="hrdem-wms-dtm-opacity-value" class="value-pill">0.8</span>
-                    </div>
-                    <div class="control-row">
-                        <span style="min-width: 70px;">Slope:</span>
-                        <input type="checkbox" id="toggle-hrdem-wms-slope">
-                        <label style="margin-left: 1em;">
-                            Opacity:
-                            <input type="range" id="hrdem-wms-slope-opacity" min="0" max="1" step="0.01" value="0.8">
-                        </label>
-                        <span id="hrdem-wms-slope-opacity-value" class="value-pill">0.8</span>
-                    </div>
-                    <div class="control-row">
-                        <span style="min-width: 70px;">Hillshade:</span>
-                        <input type="checkbox" id="toggle-hrdem-wms-hillshade">
-                        <label style="margin-left: 1em;">
-                            Opacity:
-                            <input type="range" id="hrdem-wms-hillshade-opacity" min="0" max="1" step="0.01" value="0.8">
-                        </label>
-                        <span id="hrdem-wms-hillshade-opacity-value" class="value-pill">0.8</span>
-                    </div>
-                </section>
-
-                <section class="toolkit-section">
-                    <h2>Quebec Public Land</h2>
-                    <div class="control-row">
-                        <input type="checkbox" id="toggle-quebec-public-land">
-                        <label for="toggle-quebec-public-land" style="margin-left: 0.5em;">Show</label>
-                        <label style="margin-left: 1em;">
-                            Opacity:
-                            <input type="range" id="quebec-public-land-opacity" min="0" max="1" step="0.01" value="0.7">
-                        </label>
-                        <span id="quebec-public-land-opacity-value" class="value-pill">0.7</span>
-                    </div>
-                </section>
-
-                <section class="toolkit-section">
-                    <h2>HRDEM Relief</h2>
+            <div class="control-row" style="margin-top: 0.75em; flex-direction: column; align-items: flex-start; gap: 0.5em;">
+                <div style="display: flex; align-items: center; width: 100%; justify-content: space-between;">
                     <label>
                         <input type="checkbox" id="toggle-relief">
-                        Show
+                        Height Estimate
                     </label>
-                    <div class="control-row">
-                        <label>
-                            Opacity:
-                            <input type="range" id="relief-opacity" min="0" max="1" step="0.01" value="0.5">
-                        </label>
-                        <span id="relief-opacity-value" class="value-pill">0.5</span>
+                    <div class="slider-with-value">
+                        <input type="range" id="relief-opacity" min="0" max="1" step="0.01" value="0.80">
+                        <span id="relief-opacity-value" class="value-pill">0.800</span>
                     </div>
-                    <div class="control-row">
-                        <label for="relief-vmin">Min (m):</label>
+                </div>
+                <div class="relief-rescale-row" style="display: flex; align-items: center; gap: 0.5em; margin-top: 0.3em;">
+                    <div style="margin-left:auto; display: flex; align-items: center; gap: 0.5em;">
+                        <label for="relief-vmin" style="font-size: 0.85em;">Min</label>
                         <input type="number" id="relief-vmin" class="relief-bound-input" step="0.1" value="0">
-                        <label for="relief-vmax">Max (m):</label>
+                        <label for="relief-vmax" style="font-size: 0.85em;">Max</label>
                         <input type="number" id="relief-vmax" class="relief-bound-input" step="0.1" value="3">
-                        <button id="relief-rescale-apply">Apply</button>
+                        <button id="relief-apply-scale" style="margin-left: 0.5em;">Apply</button>
                     </div>
-                </section>
+                </div>
+            </div>
+            <!-- Legend: Public Land + Relief Colorbar -->
+            <hr style="width:100%; border:none; border-top:1px solid #e5e7eb; margin:0.6em 0;">
+            <h2 class="legend-title">Legend</h2>
+            <div class="legend-content">
+                <div class="legend-item">
+                    <img src="/patp_legende.png" alt="Public land legend" class="legend-image">
+                    <div class="legend-label">Public Land</div>
+                </div>
 
-                <section class="toolkit-section">
-                    <h2>Location &amp; Measurement</h2>
-                    <p class="toolkit-hint">Use the controls below to drop markers and, in future, measure distances.</p>
+                <div id="relief-colorbar" class="relief-colorbar">
+                    <span id="relief-colorbar-max" class="colorbar-label">3.0 m</span>
+                    <canvas id="relief-colorbar-canvas" class="relief-colorbar-canvas" width="40" height="150"></canvas>
+                    <span id="relief-colorbar-min" class="colorbar-label">0.0 m</span>
+                    <div class="legend-label relief-legend-label">Height Estimate</div>
+                </div>
+            </div>
+        </div>
 
-                    <div class="control-row tool-buttons">
-                        <button id="tool-marker">Drop marker</button>
-                        <button id="tool-measure">Measure distance</button>
-                    </div>
-                    <div id="tool-output" class="tool-output">
-                        <!-- Click/measure results will appear here -->
-                    </div>
-                </section>
-
-                <section class="toolkit-section">
-                    <h2>Info Tool</h2>
-                    <p class="toolkit-hint">Toggle on, then click anywhere to drop an information placard on the map.</p>
-                    <div class="control-row tool-buttons">
-                        <button id="tool-info" aria-pressed="false">Click info</button>
-                    </div>
-                    <div id="info-tool-status" class="info-status">Activate the tool and click on the map.</div>
-                </section>
+        <!-- GIS icon toolbar (map overlay) -->
+        <div id="gis-toolbar" class="gis-toolbar">
+            <button id="gis-zoom-in" class="gis-btn" title="Zoom in">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <button id="gis-zoom-out" class="gis-btn" title="Zoom out">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <div class="gis-divider"></div>
+            <button id="tool-marker" class="gis-btn gis-tool-btn" title="Drop marker" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+            </button>
+            <button id="tool-measure" class="gis-btn gis-tool-btn" title="Measure distance" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="8" width="20" height="8" rx="1.5"/><line x1="6" y1="12" x2="6" y2="16"/><line x1="10" y1="12" x2="10" y2="16"/><line x1="14" y1="12" x2="14" y2="16"/><line x1="18" y1="12" x2="18" y2="16"/></svg>
+            </button>
+            <button id="tool-info" class="gis-btn gis-tool-btn" title="Query info" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+            </button>
+        </div>
+        <!-- Hidden output elements kept for tool JS -->
+        <div id="tool-output" style="display:none"></div>
+        <div id="info-tool-status" class="info-status" style="display:none"></div>
             </aside>
         </div>
     </div>
 
     <script type="module" src="./main.js"></script>
+        <script>
+        // Help popup logic
+        const helpTab = document.getElementById('nav-help-tab');
+        const helpPopup = document.getElementById('help-popup');
+        const helpClose = document.getElementById('help-close');
+        helpTab.addEventListener('click', (e) => {
+            e.stopPropagation();
+            helpPopup.style.display = 'block';
+        });
+        helpClose.addEventListener('click', () => {
+            helpPopup.style.display = 'none';
+        });
+        window.addEventListener('click', (e) => {
+            if (e.target === helpPopup) helpPopup.style.display = 'none';
+        });
+        </script>
     <script type="module" src="./src/ui/initControls.js"></script>
+    <script type="module" src="./src/ui/layersPanel.js"></script>
+    <script type="module" src="./src/ui/toolsPanel.js"></script>
 </body>
 </html>

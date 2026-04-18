@@ -111,21 +111,8 @@ function normalisePublicLand(feature) {
     };
 }
 
-function formatCoords(lng, lat) {
-    return `(${lat.toFixed(5)}, ${lng.toFixed(5)})`;
-}
-
-async function fetchReliefValue(lng, lat, signal) {
-    const res = await fetch(`${BACKEND_URL}/relief/point?lng=${lng}&lat=${lat}`, { signal });
-    if (!res.ok) {
-        throw new Error(`Relief point request failed: ${res.status}`);
-    }
-    const data = await res.json();
-    if (typeof data.elevation_m === 'number') {
-        return data.elevation_m;
-    }
-    return null;
-}
+// Coordinates formatting and relief fetching were removed — the info popup now shows only
+// public/private land information returned by the WMS GetFeatureInfo call.
 
 async function fetchPublicLandFeature(map, lngLat, signal) {
     const url = buildGetFeatureInfoUrl(map, lngLat);
@@ -146,19 +133,14 @@ function isAbortError(err) {
     return err?.name === 'AbortError';
 }
 
-function buildPopupHtml({ coordsText, reliefText, publicInfo }) {
+function buildPopupHtml({ publicInfo }) {
     const info = publicInfo ?? { name: 'NULL', id: 'N/A', date: 'N/A', use: 'N/A', fullName: 'N/A' };
+    if (info.name === 'NULL') {
+        return `<div class="info-popup"><div class="info-popup-row"><span class="info-popup-value">Private</span></div></div>`;
+    }
     return `
         <div class="info-popup">
-            <div class="info-popup-row">
-                <span class="info-popup-label">Coordinate</span>
-                <span class="info-popup-value">${coordsText}</span>
-            </div>
-            ${info.name === 'NULL'
-                ? `<div class="info-popup-row">
-                <span class="info-popup-value">Private</span>
-            </div>`
-                : `<details class="info-popup-details">
+            <details class="info-popup-details">
                 <summary>
                     <span class="info-popup-label">Public/Protected:</span>
                     <span class="info-popup-value">${info.name}</span>
@@ -179,8 +161,7 @@ function buildPopupHtml({ coordsText, reliefText, publicInfo }) {
                     <span class="info-popup-detail-label">Date</span>
                     <span class="info-popup-detail-value">${info.date}</span>
                 </div>
-            </details>`
-            }
+            </details>
         </div>
     `;
 }
@@ -205,8 +186,8 @@ export function setupInfoTool(map) {
     let activeController = null;
     let popup = null;
 
-    const showPopup = (lngLat, coordsText, reliefText, publicInfo) => {
-        const html = buildPopupHtml({ coordsText, reliefText, publicInfo });
+    const showPopup = (lngLat, publicInfo) => {
+        const html = buildPopupHtml({ publicInfo });
         if (popup) {
             popup.remove();
         }
@@ -239,46 +220,18 @@ export function setupInfoTool(map) {
         const controller = new AbortController();
         activeController = controller;
 
-        const { lng, lat } = e.lngLat;
-        const coordsText = formatCoords(lng, lat);
         setStatus(STATUS_QUERYING);
 
-        const reliefPromise = Promise.resolve(null); // TODO: re-enable when backend relief is fixed
-        const publicPromise = fetchPublicLandFeature(map, e.lngLat, controller.signal);
-
-        let reliefText = 'N/A';
-        let publicInfo = null;
-        let hadError = false;
-
         try {
-            const [reliefResult, publicResult] = await Promise.allSettled([reliefPromise, publicPromise]);
-            if (controller.signal.aborted) {
-                return;
-            }
-
-            if (reliefResult.status === 'fulfilled') {
-                const value = reliefResult.value;
-                reliefText = value === null ? 'N/A' : `${value.toFixed(2)} m`;
-            } else if (!isAbortError(reliefResult.reason)) {
-                console.error('Info tool relief fetch failed:', reliefResult.reason);
-                hadError = true;
-            }
-
-            if (publicResult.status === 'fulfilled') {
-                publicInfo = normalisePublicLand(publicResult.value);
-            } else if (!isAbortError(publicResult.reason)) {
-                console.error('Info tool public land fetch failed:', publicResult.reason);
-                hadError = true;
-            }
-
-            showPopup(e.lngLat, coordsText, reliefText, publicInfo);
-            setStatus(hadError ? STATUS_ERROR : STATUS_SUCCESS);
+            const publicResult = await fetchPublicLandFeature(map, e.lngLat, controller.signal);
+            if (controller.signal.aborted) return;
+            const publicInfo = normalisePublicLand(publicResult);
+            showPopup(e.lngLat, publicInfo);
+            setStatus(STATUS_SUCCESS);
         } catch (err) {
-            if (isAbortError(err)) {
-                return;
-            }
-            console.error('Info tool error:', err);
-            showPopup(e.lngLat, coordsText, 'N/A', null);
+            if (isAbortError(err)) return;
+            console.error('Info tool public land fetch failed:', err);
+            showPopup(e.lngLat, null);
             setStatus(STATUS_ERROR);
         } finally {
             if (activeController === controller) {
@@ -287,21 +240,30 @@ export function setupInfoTool(map) {
         }
     };
 
-    button.addEventListener('click', () => {
-        if (active) {
-            deactivate();
-            return;
-        }
+    let onDeactivatedCb = null;
+
+    const activateInternal = () => {
         active = true;
         button.classList.add('active-tool');
         button.setAttribute('aria-pressed', 'true');
         setStatus(STATUS_READY);
         map.getCanvas().style.cursor = 'crosshair';
-        clickHandler = handleClick;
+        clickHandler = async (e) => {
+            deactivate();
+            onDeactivatedCb?.();
+            await handleClick(e);
+        };
         map.on('click', clickHandler);
-    });
+    };
+
+    const activate = (callbacks = {}) => {
+        onDeactivatedCb = callbacks.onDeactivated ?? null;
+        if (!active) activateInternal();
+    };
 
     return {
+        activate,
         deactivate,
+        button,
     };
 }

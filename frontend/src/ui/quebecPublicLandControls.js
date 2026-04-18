@@ -20,6 +20,8 @@ export function setupQuebecPublicLandControls(map) {
 
     // --- Opacity slider ---
     if (opacitySlider && opacityValue) {
+        // Set initial value to 3 decimals
+        opacityValue.textContent = parseFloat(opacitySlider.value).toFixed(2);
         opacitySlider.addEventListener('input', () => {
             const value = parseFloat(opacitySlider.value);
             opacityValue.textContent = value.toFixed(2);

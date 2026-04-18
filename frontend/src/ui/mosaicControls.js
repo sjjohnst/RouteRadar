@@ -8,15 +8,15 @@ export async function setupReliefControls(map) {
     const reliefOpacityValue  = document.getElementById('relief-opacity-value');
     const vminInput           = document.getElementById('relief-vmin');
     const vmaxInput           = document.getElementById('relief-vmax');
-    const applyBtn            = document.getElementById('relief-rescale-apply');
+    const applyBtn            = document.getElementById('relief-apply-scale');
 
     // Current bounds — initialised from layerDefaults
     let vmin = layerDefaults.relief.vminMetres;
     let vmax = layerDefaults.relief.vmaxMetres;
 
-    // Draw the colorbar once on load and show it if the layer is visible
+    // Draw the colorbar once on load and always show it (UI always displays colorbar)
     initReliefColorbar(vmin, vmax);
-    showReliefColorbar(layerDefaults.relief.visible);
+    showReliefColorbar(true);
 
     async function updateReliefSource() {
         const newUrl = await buildReliefTileUrl(vmin, vmax);
@@ -35,11 +35,14 @@ export async function setupReliefControls(map) {
                     reliefToggle.checked ? 'visible' : 'none'
                 );
             }
-            showReliefColorbar(reliefToggle.checked);
+            // Keep colorbar always visible regardless of layer toggle
+            showReliefColorbar(true);
         });
     }
 
     if (reliefOpacitySlider && reliefOpacityValue) {
+        // Set initial value to 3 decimals
+        reliefOpacityValue.textContent = parseFloat(reliefOpacitySlider.value).toFixed(2);
         reliefOpacitySlider.addEventListener('input', () => {
             const value = parseFloat(reliefOpacitySlider.value);
             reliefOpacityValue.textContent = value.toFixed(2);
@@ -49,18 +52,19 @@ export async function setupReliefControls(map) {
         });
     }
 
-    if (applyBtn && vminInput && vmaxInput) {
-        applyBtn.addEventListener('click', async () => {
-            const newVmin = parseFloat(vminInput.value);
-            const newVmax = parseFloat(vmaxInput.value);
-            if (!Number.isFinite(newVmin) || !Number.isFinite(newVmax) || newVmin >= newVmax) {
-                alert('Please enter valid min/max values where min < max.');
-                return;
-            }
-            vmin = newVmin;
-            vmax = newVmax;
-            updateReliefColorbar(vmin, vmax);
-            await updateReliefSource();
-        });
+    function handleRescaleApply() {
+        const newVmin = parseFloat(vminInput.value);
+        const newVmax = parseFloat(vmaxInput.value);
+        if (!Number.isFinite(newVmin) || !Number.isFinite(newVmax) || newVmin >= newVmax) {
+            // Optionally: add error styling or tooltip
+            return;
+        }
+        vmin = newVmin;
+        vmax = newVmax;
+        updateReliefColorbar(vmin, vmax);
+        updateReliefSource();
+    }
+    if (applyBtn) {
+        applyBtn.addEventListener('click', handleRescaleApply);
     }
 }

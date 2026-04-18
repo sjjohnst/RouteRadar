@@ -14,6 +14,7 @@ frontend/dist/
 .env.local
 .env.*.local
 frontend/.wrangler/
+frontend/.dev.vars
 
 # Logs
 logs/
@@ -30,3 +31,4 @@ data/
 
 # Misc
 experiments/
+backend/deploy-backend.sh
