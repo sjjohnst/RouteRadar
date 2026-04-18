@@ -14,9 +14,9 @@ export async function setupReliefControls(map) {
     let vmin = layerDefaults.relief.vminMetres;
     let vmax = layerDefaults.relief.vmaxMetres;
 
-    // Draw the colorbar once on load and show it if the layer is visible
+    // Draw the colorbar once on load and always show it (UI always displays colorbar)
     initReliefColorbar(vmin, vmax);
-    showReliefColorbar(reliefToggle && reliefToggle.checked);
+    showReliefColorbar(true);
 
     async function updateReliefSource() {
         const newUrl = await buildReliefTileUrl(vmin, vmax);
@@ -35,7 +35,8 @@ export async function setupReliefControls(map) {
                     reliefToggle.checked ? 'visible' : 'none'
                 );
             }
-            showReliefColorbar(reliefToggle.checked);
+            // Keep colorbar always visible regardless of layer toggle
+            showReliefColorbar(true);
         });
     }
 
