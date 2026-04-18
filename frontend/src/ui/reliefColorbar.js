@@ -34,6 +34,7 @@ function paintCividis(canvas) {
     const ctx = canvas.getContext('2d');
     const h = canvas.height;
     const w = canvas.width;
+    const radius = Math.min(w, h) / 2;
 
     // Build a linear gradient top-to-bottom (top = high value = warm end)
     const grad = ctx.createLinearGradient(0, 0, 0, h);
@@ -42,8 +43,23 @@ function paintCividis(canvas) {
         grad.addColorStop(i / (n - 1), `rgb(${r},${g},${b})`);
     });
 
+    // Draw rounded rectangle (vertical capsule)
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(radius, 0);
+    ctx.lineTo(w - radius, 0);
+    ctx.arcTo(w, 0, w, radius, radius);
+    ctx.lineTo(w, h - radius);
+    ctx.arcTo(w, h, w - radius, h, radius);
+    ctx.lineTo(radius, h);
+    ctx.arcTo(0, h, 0, h - radius, radius);
+    ctx.lineTo(0, radius);
+    ctx.arcTo(0, 0, radius, 0, radius);
+    ctx.closePath();
+    ctx.clip();
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
+    ctx.restore();
 }
 
 /** Format a number nicely for a label. */

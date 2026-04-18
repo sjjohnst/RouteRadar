@@ -1,0 +1,3 @@
+cogeo-mosaic
+boto3
+rio-tiler[s3]

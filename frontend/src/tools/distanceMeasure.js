@@ -25,54 +25,53 @@ export function initDistanceMeasureTool(map) {
     }
 
     const sourceId = 'measure-line-source';
-    const layerId = 'measure-line-layer';
+    const lineLayerId = 'measure-line-layer';
+    const labelLayerId = 'measure-label-layer';
 
     let active = false;
-    let points = [];
+    let measuring = false;
+    let start = null;
+    let current = null;
+    let completed = false;
+    let onDeactivated = null;
 
-    const updateLine = () => {
+    const updateSourceData = () => {
         const source = map.getSource(sourceId);
-        const geojson = {
-            type: 'FeatureCollection',
-            features: []
-        };
+        const features = [];
 
-        if (points.length > 1) {
-            geojson.features.push({
+        if (start && current) {
+            features.push({
                 type: 'Feature',
                 geometry: {
                     type: 'LineString',
-                    coordinates: points
+                    coordinates: [start, current]
                 },
                 properties: {}
             });
+
+            // midpoint for label
+            const mid = [(start[0] + current[0]) / 2, (start[1] + current[1]) / 2];
+            const dist = haversineDistance(start, current);
+            features.push({
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: mid
+                },
+                properties: {
+                    distance: `${dist.toFixed(0)} m`
+                }
+            });
         }
+
+        const geojson = {
+            type: 'FeatureCollection',
+            features
+        };
 
         if (source) {
             source.setData(geojson);
         }
-    };
-
-    const updateDistanceOutput = () => {
-        if (points.length < 2) {
-            output.textContent = 'Click to add points for distance measurement.';
-            return;
-        }
-
-        let total = 0;
-        for (let i = 1; i < points.length; i++) {
-            total += haversineDistance(points[i - 1], points[i]);
-        }
-
-        const km = total / 1000;
-        output.textContent = `Distance: ${total.toFixed(0)} m`;
-    };
-
-    const clickHandler = (event) => {
-        const { lng, lat } = event.lngLat;
-        points.push([lng, lat]);
-        updateLine();
-        updateDistanceOutput();
     };
 
     const ensureSourceAndLayer = () => {
@@ -86,25 +85,94 @@ export function initDistanceMeasureTool(map) {
             });
         }
 
-        if (!map.getLayer(layerId)) {
+        if (!map.getLayer(lineLayerId)) {
             map.addLayer({
-                id: layerId,
+                id: lineLayerId,
                 type: 'line',
                 source: sourceId,
                 paint: {
                     'line-color': '#f97316',
                     'line-width': 3,
                     'line-dasharray': [2, 2]
-                }
+                },
+                filter: ['==', ['geometry-type'], 'LineString']
+            });
+        }
+
+        if (!map.getLayer(labelLayerId)) {
+            map.addLayer({
+                id: labelLayerId,
+                type: 'symbol',
+                source: sourceId,
+                layout: {
+                    'text-field': ['get', 'distance'],
+                    'text-size': 14,
+                    'text-offset': [0, -0.6],
+                    'text-anchor': 'top'
+                },
+                paint: {
+                    'text-color': '#111',
+                    'text-halo-color': '#fff',
+                    'text-halo-width': 2
+                },
+                filter: ['==', ['geometry-type'], 'Point']
             });
         }
     };
 
-    const activate = () => {
+    const mousemoveHandler = (event) => {
+        if (!measuring) return;
+        current = [event.lngLat.lng, event.lngLat.lat];
+        updateSourceData();
+        const dist = haversineDistance(start, current);
+        output.textContent = `Distance: ${dist.toFixed(0)} m`;
+    };
+
+    const mouseupHandler = (event) => {
+        if (!measuring) return;
+        current = [event.lngLat.lng, event.lngLat.lat];
+        measuring = false;
+        completed = true;
+        updateSourceData();
+        const dist = haversineDistance(start, current);
+        output.textContent = `Distance: ${dist.toFixed(0)} m`;
+
+        map.getCanvas().style.cursor = '';
+        try { map.dragPan.enable(); } catch (e) {}
+
+        map.off('mousemove', mousemoveHandler);
+        map.off('mouseup', mouseupHandler);
+
+        // Automatically turn the tool off after finishing, but leave the measurement visible
+        deactivate();
+    };
+
+    const mousedownHandler = (event) => {
+        // start measuring
+        start = [event.lngLat.lng, event.lngLat.lat];
+        current = start.slice();
+        measuring = true;
+        completed = false;
+        if (map.isStyleLoaded()) {
+            ensureSourceAndLayer();
+        } else {
+            map.once('load', ensureSourceAndLayer);
+        }
+
+        updateSourceData();
+        output.textContent = 'Drag to set end point...';
+        map.getCanvas().style.cursor = 'crosshair';
+        try { map.dragPan.disable(); } catch (e) {}
+
+        map.on('mousemove', mousemoveHandler);
+        map.on('mouseup', mouseupHandler);
+    };
+
+    const activate = (callbacks = {}) => {
+        onDeactivated = callbacks.onDeactivated ?? null;
         if (active) return;
         active = true;
-        measureButton.classList.add('active-tool');
-        points = [];
+        measureButton.setAttribute('aria-pressed', 'true');
 
         if (map.isStyleLoaded()) {
             ensureSourceAndLayer();
@@ -112,29 +180,35 @@ export function initDistanceMeasureTool(map) {
             map.once('load', ensureSourceAndLayer);
         }
 
-        output.textContent = 'Click on the map to add points.';
-        map.on('click', clickHandler);
+        output.textContent = 'Hold mouse and drag to measure distance.';
+        // Show crosshair cursor while the tool is active
+        try { map.getCanvas().style.cursor = 'crosshair'; } catch (e) {}
+        map.on('mousedown', mousedownHandler);
     };
 
     const deactivate = () => {
         if (!active) return;
         active = false;
-        measureButton.classList.remove('active-tool');
-        map.off('click', clickHandler);
+        measureButton.setAttribute('aria-pressed', 'false');
 
-        points = [];
-        const source = map.getSource(sourceId);
-        if (source) {
-            source.setData({ type: 'FeatureCollection', features: [] });
+        map.off('mousedown', mousedownHandler);
+        map.off('mousemove', mousemoveHandler);
+        map.off('mouseup', mouseupHandler);
+
+        map.getCanvas().style.cursor = '';
+        try { map.dragPan.enable(); } catch (e) {}
+
+        // If the measurement hasn't been completed, clear drawings; otherwise leave them visible.
+        if (!completed) {
+            const source = map.getSource(sourceId);
+            if (source) {
+                source.setData({ type: 'FeatureCollection', features: [] });
+            }
+            output.textContent = '';
         }
-        output.textContent = '';
+
+        onDeactivated?.();
     };
 
-    measureButton.addEventListener('click', () => {
-        if (active) {
-            deactivate();
-        } else {
-            activate();
-        }
-    });
+    return { activate, deactivate, button: measureButton };
 }

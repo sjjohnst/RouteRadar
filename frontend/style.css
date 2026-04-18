@@ -1,3 +1,206 @@
+
+/* Help popup styles */
+.help-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.25);
+    z-index: 999999 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
+.help-popup-content {
+    background: #fff;
+    border-radius: 1em;
+    padding: 2em 2.5em 1.5em 2.5em;
+    width: 520px;
+    height: 580px;
+    min-width: 320px;
+    min-height: 320px;
+    max-width: 90vw;
+    max-height: 90vh;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    overflow: hidden;
+}
+.help-close {
+    position: absolute;
+    top: 0.7em;
+    right: 1.1em;
+    font-size: 2em;
+    color: #888;
+    cursor: pointer;
+    font-weight: bold;
+}
+.help-close:hover {
+    color: #21532e;
+}
+
+/* Help guide content styles */
+.help-guide {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    padding-right: 0.5em;
+}
+
+.help-guide h2 {
+    margin-top: 0;
+    margin-bottom: 0.8em;
+    font-size: 1.5em;
+    color: #21532e;
+}
+
+.help-section {
+    margin-bottom: 1.2em;
+}
+
+.help-section h3 {
+    margin: 0 0 0.5em 0;
+    font-size: 1.1em;
+    color: #374151;
+    font-weight: 600;
+}
+
+.help-section p {
+    margin: 0 0 0.5em 0;
+    font-size: 0.95em;
+    color: #4b5563;
+    line-height: 1.4;
+}
+
+.help-section ul {
+    margin: 0 0 0 1.2em;
+    padding: 0;
+    font-size: 0.9em;
+    color: #4b5563;
+}
+
+.help-section li {
+    margin-bottom: 0.35em;
+    line-height: 1.4;
+}
+
+.help-section strong {
+    color: #21532e;
+    font-weight: 600;
+}
+/* ── Enhanced MapLibre Scale Bar ───────────────────────────── */
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl-scale {
+    background: rgba(249, 250, 251, 0.97);
+    color: #262727;
+    border-radius: 0.2em;
+    font-size: 1.5em;
+    font-weight: 600;
+    border: 1.5px solid #000000;
+    padding: 0.25em 0.2em;
+    margin: 0.3em 0.3em;
+    min-width: 90px;
+    text-align: center;
+}
+/* Brand and Layers tab row */
+.brand-and-tabs {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5em;
+}
+
+.brand-and-tabs .nav-tab {
+    margin-left: 2.5em;
+    margin-right: 0.7em;
+}
+.brand-and-tabs .nav-tab:first-of-type {
+    margin-left: 2.5em;
+}
+.brand-and-tabs .nav-tab + .nav-tab {
+    margin-left: 0.7em;
+}
+
+/* GitHub link styles */
+.github-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f9fafb;
+    transition: color 0.2s, transform 0.2s;
+    padding: 0.5rem;
+    margin-left: auto;
+    margin-right: 1.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.github-link:hover {
+    color: #cbd5e1;
+    transform: scale(1.1);
+}
+
+.github-link svg {
+    width: 24px;
+    height: 24px;
+}
+
+.brand-and-tabs img {
+    margin-right: 3px;
+    height: 48px;
+    width: auto;
+}
+/* ── Floating Layers Panel ───────────────────────────── */
+.floating-panel {
+    position: absolute;
+    top: 1.5em;
+    left: 1.5em;
+    z-index: 30;
+    min-width: 340px;
+    max-width: 340px;
+    background: rgba(240, 240, 240, 0.9);
+    border-radius: 0.5em;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.13);
+    padding: 0em 1.5em 1em 1em;
+    border: 1px solid #000000;
+    transition: opacity 0.18s;
+    opacity: 1;
+}
+.floating-panel.hidden {
+    display: none !important;
+}
+
+/* Nav tab for Layers */
+.nav-tab {
+    background: none;
+    border: 2px solid #000000;
+    color: #f9fafb;
+    font-size: 1.3em;
+    padding: 0.7em 1.1em 0.3em 1.1em;
+    border-radius: 0.5em 0.5em 0 0;
+    margin-right: 0.5em;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    width: 130px;
+    height: 2.2em;
+    text-align: center;
+    box-sizing: border-box;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+.nav-tab[aria-pressed="true"] {
+    background: #f9fafb;
+    color: #111827;
+}
 html, body {
     margin: 0;
     padding: 0;
@@ -7,6 +210,10 @@ html, body {
 
 body {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.hidden {
+    display: none !important;
 }
 
 #app {
@@ -20,28 +227,24 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 0.5rem 1rem;
-    background: #111827;
+    background: #21532e;
     color: #f9fafb;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.4);
     z-index: 10;
 }
 
+/* Larger brand text and taller nav bar */
 #top-nav .brand {
-    font-weight: 600;
+    font-weight: 400;
+    font-size: 2.3rem;
+    letter-spacing: 1.5px;
+    line-height: 1.5;
 }
 
-.toolkit-nav-toggle {
-    border-radius: 999px;
-    border: 1px solid #4b5563;
-    background: transparent;
-    color: #e5e7eb;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.85rem;
-    cursor: pointer;
-}
-
-.toolkit-nav-toggle:hover {
-    background: rgba(249, 250, 251, 0.08);
+#top-nav {
+    min-height: 4rem;
+    padding-top: 0.7rem;
+    padding-bottom: 0rem;
 }
 
 #layout {
@@ -62,48 +265,6 @@ body {
     inset: 0;
 }
 
-#map-attribution {
-    position: absolute;
-    left: 0.5rem;
-    bottom: 0.5rem;
-    right: 0.5rem;
-    max-width: 100%;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.7rem;
-    line-height: 1.2;
-    color: #e5e7eb;
-    background: rgba(15, 23, 42, 0.7);
-    border-radius: 0.25rem;
-    box-sizing: border-box;
-    pointer-events: none;
-}
-
-#toolkit-panel {
-    flex: 1;
-    min-width: 260px;
-    max-width: 420px;
-    padding: 1rem;
-    background: #f9fafb;
-    border-left: 1px solid #e5e7eb;
-    box-sizing: border-box;
-    overflow-y: auto;
-}
-
-.toolkit-section {
-    margin-bottom: 1.25rem;
-}
-
-.toolkit-title {
-    margin: 0 0 0.25rem;
-    font-size: 1.25rem;
-}
-
-.toolkit-subtitle {
-    margin: 0;
-    font-size: 0.9rem;
-    color: #6b7280;
-}
-
 .control-row {
     display: flex;
     align-items: center;
@@ -119,56 +280,47 @@ body {
     font-size: 0.8rem;
 }
 
-.tool-buttons {
-    flex-wrap: wrap;
-}
-
-.tool-buttons button {
-    flex: 1 1 30%;
-}
-
-.tool-output {
-    margin-top: 0.5rem;
-    padding: 0.5rem;
-    min-height: 2rem;
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.375rem;
-    font-size: 0.85rem;
-}
-
-.active-tool {
-    background-color: #111827;
-    color: #f9fafb;
-}
-
-.toolkit-header-row {
-    display: flex;
+/* Compact slider wrapper with inline value to the right */
+.slider-with-value {
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
     gap: 0.5rem;
 }
-
-.toolkit-collapse-btn {
-    display: none;
+.slider-with-value input[type="range"] {
+    width: 140px;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 14px;
+    border-radius: 999px;
+    outline: none;
+    /* Checkerboard left, solid right */
+    background:
+        linear-gradient(90deg, rgba(249,250,251,0) 0%, rgba(249,250,251,1) 100%),
+        repeating-conic-gradient(#e5e7eb 0% 25%, #cbd5e1 0% 50%) 0% 0%/16px 16px;
+    background-blend-mode: normal;
+    background-color: #e5e7eb;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    position: relative;
+    /* Add a border for contrast */
+    border: 1px solid #000000;
 }
-
-.toolkit-collapse-btn:hover {
-    background: transparent;
+.slider-with-value input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #111827;
+    border: 2px solid #ffffff;
 }
-
-.toolkit-hint {
-    margin: 0.25rem 0 0.5rem;
-    font-size: 0.8rem;
-    color: #6b7280;
-}
-
-#layout.toolkit-collapsed #toolkit-panel {
-    display: none;
-}
-
-#layout.toolkit-collapsed #map-container {
-    flex: 1 1 auto;
+.slider-with-value .value-pill {
+    padding: 0.06rem 0.4rem;
+    border-radius: 999px;
+    background: #d7d7d8;
+    font-size: 0.82rem;
+    min-width: 2.7em; /* Reserve space for 1.00 or -0.00 */
+    font-family: 'Roboto Mono', 'Menlo', 'Consolas', monospace;
+    text-align: center;
+    box-sizing: border-box;
 }
 
 @media (max-width: 900px) {
@@ -187,38 +339,162 @@ body {
     }
 }
 
-/* ── Relief colorbar overlay ──────────────────────────────────────── */
-.relief-colorbar {
+/* ── GIS icon toolbar ─────────────────────────────────────────────── */
+.gis-toolbar {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
+    right: 1.5em;
+    top: 15%;
+    transform: translateY(-50%);
+    z-index: 20;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.25rem;
-    background: rgba(15, 23, 42, 0.65);
-    border-radius: 0.375rem;
-    padding: 0.4rem 0.5rem;
-    z-index: 5;
-    pointer-events: none;
-    user-select: none;
+    gap: 2px;
+    background: rgba(15, 23, 42, 0.82);
+    border-radius: 0.6em;
+    padding: 0.35em;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.35);
 }
-
-.relief-colorbar.hidden {
-    display: none;
+.gis-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 0.4em;
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    padding: 0;
 }
-
-.relief-colorbar canvas {
-    border-radius: 3px;
+.gis-btn svg {
     width: 20px;
-    height: 160px;
-    display: block;
+    height: 20px;
+    pointer-events: none;
+}
+.gis-btn:hover {
+    background: rgba(255,255,255,0.12);
+    color: #f8fafc;
+}
+.gis-tool-btn[aria-pressed="true"] {
+    background: rgba(99, 179, 237, 0.25);
+    color: #63b3ed;
+}
+.gis-divider {
+    width: 24px;
+    height: 1px;
+    background: rgba(255,255,255,0.15);
+    margin: 3px 0;
 }
 
+/* Also apply legend styles when placed inside the floating Layers panel */
+.floating-panel .legend-title {
+    margin: 0 0 0.4em 0;
+    font-size: 0.95em;
+    color: #111827;
+    font-weight: 700;
+}
+.floating-panel .legend-content {
+    display: flex;
+    flex-direction: row;
+    gap: 0.8em;
+    align-items: stretch;
+    justify-content: space-between;
+}
+
+.floating-panel .legend-item {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25em;
+    height: 220px; /* increased so canvas + labels fit */
+}
+.floating-panel .legend-image {
+    width: auto;
+    height: 80%;
+    max-width: 200px; /* larger image */
+    display: block;
+    border: 1px solid rgba(0,0,0,0.5);
+    background: #fff;
+    padding: 0.5em;
+    border-radius: 0.25em;
+    object-fit: contain;
+}
+.floating-panel .legend-label {
+    font-size: 0.85em;
+    color: #374151;
+}
+
+/* Make relief colorbar share the same height as the image column */
+.floating-panel #relief-colorbar {
+    flex: 0 0 auto;
+    height: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+@media (max-width: 600px) {
+    .floating-panel .legend-content {
+        flex-direction: column;
+        align-items: center;
+    }
+    .floating-panel .legend-item,
+    .floating-panel #relief-colorbar {
+        height: auto;
+    }
+}
+
+/* ── Relief colorbar overlay ──────────────────────────────────────── */
+/* Relief colorbar overlay (vertical, on map) */
+.relief-colorbar {
+    /* Show only the canvas and text (no panel background) */
+    position: relative;
+    bottom: unset;
+    right: unset;
+    top: unset;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: transparent; /* remove container background */
+    border-radius: 0; /* let canvas control rounding */
+    padding: 0; /* no padding so canvas sits flush */
+    box-shadow: none; /* remove shadow behind container */
+    pointer-events: none;
+    min-width: auto;
+}
+.relief-colorbar.hidden {
+    display: none !important;
+}
+.relief-colorbar-canvas {
+    display: block;
+    border-radius: 20px;
+    margin: 0.2em 0;
+    width: 40px;
+    height: 170px;
+    background: transparent;
+}
+
+/* When legend is inside the floating Layers panel, use dark text for the colorbar labels */
+.floating-panel #relief-colorbar .colorbar-label,
+.floating-panel #relief-colorbar .relief-legend-label {
+    color: #111827;
+}
+.floating-panel #relief-colorbar .legend-label {
+    color: #111827;
+}
 .colorbar-label {
-    font-size: 0.7rem;
     color: #f9fafb;
-    white-space: nowrap;
+    font-size: 0.9em;
+    margin: 0.1em 0;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.18);
+    pointer-events: none;
 }
 
 /* ── Relief rescale inputs ────────────────────────────────────────── */
@@ -228,4 +504,86 @@ body {
     font-size: 0.8rem;
     border: 1px solid #d1d5db;
     border-radius: 0.25rem;
+}
+
+/* ── Info tool status ─────────────────────────────────────────────── */
+.info-status {
+    margin-top: 0.6rem;
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+
+/* ── Map placard styling ─────────────────────────────────────────── */
+.maplibregl-popup-content .info-popup {
+    min-width: 240px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.maplibregl-popup-content .info-popup-row,
+.maplibregl-popup-content .info-popup-details summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    margin-bottom: 0.35rem;
+}
+
+.maplibregl-popup-content .info-popup-label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.8rem;
+}
+
+.maplibregl-popup-content .info-popup-value {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    color: #111827;
+}
+
+.maplibregl-popup-content .info-popup-details summary {
+    cursor: pointer;
+    list-style: none;
+}
+
+.maplibregl-popup-content .info-popup-details summary::marker {
+    display: none;
+}
+
+.maplibregl-popup-content .info-popup-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.maplibregl-popup-content .info-popup-details summary::before {
+    content: '▸';
+    margin-right: 0.35rem;
+    font-size: 0.8rem;
+    color: #4b5563;
+    transition: transform 0.15s ease;
+}
+
+.maplibregl-popup-content .info-popup-details[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.maplibregl-popup-content .info-popup-details {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 0.4rem;
+    margin-top: 0.35rem;
+}
+
+.maplibregl-popup-content .info-popup-detail {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    margin-bottom: 0.2rem;
+}
+
+.maplibregl-popup-content .info-popup-detail-label {
+    color: #4b5563;
+}
+
+.maplibregl-popup-content .info-popup-detail-value {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    color: #111827;
 }
