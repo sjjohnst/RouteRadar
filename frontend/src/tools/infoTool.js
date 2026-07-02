@@ -2,7 +2,7 @@ import maplibregl from 'maplibre-gl';
 import { BACKEND_URL } from '../config/api.js';
 
 const WMS_BASE = '/patp-wms';
-const WMS_LAYER = 'Affectations surfaciques';
+const WMS_LAYER = '0';
 const GFI_SIZE = 256;
 const EARTH_RADIUS = 6378137;
 const MAX_MERCATOR_LAT = 85.05112878;
@@ -13,11 +13,11 @@ const STATUS_QUERYING = 'Querying map services…';
 const STATUS_ERROR = 'Unable to fetch some map data.';
 const STATUS_SUCCESS = 'Placard updated on the map.';
 
-const NAME_KEYS = ['NOMZONE'];
+const NAME_KEYS = ['NOMZONE', 'NOM ZONE'];
 const ID_KEYS = ['Identifiant'];
 const DATE_KEYS = ['Date'];
 const USE_KEYS = ['Vocation'];
-const FULL_NAME_KEYS = ['NOMSOUSZONE'];
+const FULL_NAME_KEYS = ['NOMSOUSZONE', 'NOM SOUS ZONE'];
 
 function clampLat(lat) {
     return Math.max(Math.min(lat, MAX_MERCATOR_LAT), -MAX_MERCATOR_LAT);
@@ -52,7 +52,7 @@ function buildGetFeatureInfoUrl(map, lngLat) {
         REQUEST: 'GetFeatureInfo',
         LAYERS: WMS_LAYER,
         QUERY_LAYERS: WMS_LAYER,
-        INFO_FORMAT: 'application/geojson',
+        INFO_FORMAT: 'application/geo+json',
         FEATURE_COUNT: 5,
         CRS: 'EPSG:3857',
         WIDTH: GFI_SIZE,
