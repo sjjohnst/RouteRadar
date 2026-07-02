@@ -113,7 +113,7 @@ export function buildQuebecPublicLandWmsUrl() {
         "?SERVICE=WMS" +
         "&VERSION=1.3.0" +
         "&REQUEST=GetMap" +
-        "&LAYERS=Affectations surfaciques" +
+        "&LAYERS=0" +
         "&STYLES=" +
         "&FORMAT=image/png" +
         "&TRANSPARENT=TRUE" +
