@@ -51,15 +51,13 @@ print('All Good')"
 # and the docker-compose local stack without duplication.
 ENV PYTHONPATH=/asset \
     GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR \
-    CPL_VSIL_CURL_ALLOWED_EXTENSIONS=.tif,.tiff,.vrt,.ovr \
+    CPL_VSIL_CURL_ALLOWED_EXTENSIONS=.tif,.tiff,.vrt,.ovr,.json \
     GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=YES \
     GDAL_HTTP_MULTIPLEX=YES \
     GDAL_HTTP_VERSION=2 \
     GDAL_BAND_BLOCK_CACHE=HASHSET \
-    GDAL_CACHEMAX=512 \
-    CPL_VSIL_CURL_CACHE_SIZE=200000000 \
-    VSI_CACHE=TRUE \
-    VSI_CACHE_SIZE=536870912
+    GDAL_CACHEMAX=300 \
+    CPL_VSIL_CURL_CACHE_SIZE=50000000
 
 # Lambda invokes main.handler (the Mangum wrapper around the FastAPI app)
 CMD ["main.handler"]

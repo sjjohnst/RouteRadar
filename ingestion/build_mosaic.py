@@ -20,6 +20,7 @@ Optional env vars (with defaults matching the Lambda backend):
     COG_PREFIX            — R2 prefix to scan  (default: relief_tiles/)
     COG_MINZOOM           — mosaic minzoom      (default: 7)
     COG_MAXZOOM           — mosaic maxzoom      (default: 18)
+    COG_QUADKEY_ZOOM      — index granularity   (default: 11)
     MOSAIC_OUTPUT_KEY     — R2 key to upload to (default: mosaic/relief.json)
 """
 
@@ -70,20 +71,48 @@ def list_cog_uris(client, bucket: str, prefix: str) -> list[str]:
     return uris
 
 
-def build_mosaic_dict(uris: list[str], minzoom: int, maxzoom: int) -> dict:
-    """Build and return a MosaicJSON dict from a list of COG URIs."""
-    logger.info("Building MosaicJSON (zoom %d–%d) from %d COGs …", minzoom, maxzoom, len(uris))
+def build_mosaic_dict(
+    uris: list[str], minzoom: int, maxzoom: int, quadkey_zoom: int
+) -> dict:
+    """Build and return a MosaicJSON dict from a list of COG URIs.
+
+    *quadkey_zoom* sets the granularity of the mosaic's spatial index and is
+    the single most important knob for tile latency. It must be fine enough
+    that a lookup returns only the COGs a tile actually intersects.
+
+    cogeo-mosaic defaults quadkey_zoom to *minzoom*. At minzoom=7 a quadkey
+    cell spans ~218 km on the ground while our COGs are ~32 km
+    (data_ingestion.py: tile_size=2**15 at 1 m/px), so the index was ~7x
+    coarser than the data it indexed: all 66 COGs collapsed into 3 quadkeys
+    and every single 256x256 tile request opened all 66 from R2.
+
+    At zoom 11 a cell spans ~19.6 km, so each cell overlaps at most 2x2 COGs
+    and a lookup returns 1-4 assets instead of 66.
+    """
+    logger.info(
+        "Building MosaicJSON (zoom %d–%d, quadkey_zoom %d) from %d COGs …",
+        minzoom, maxzoom, quadkey_zoom, len(uris),
+    )
 
     mosaic = MosaicJSON.from_urls(
         uris,
         minzoom=minzoom,
         maxzoom=maxzoom,
+        quadkey_zoom=quadkey_zoom,
     )
+
+    tiles: dict = mosaic.tiles
+    assets_per_quadkey = [len(v) for v in tiles.values()] or [0]
     logger.info(
-        "MosaicJSON built — zoom %d–%d, %d quadkeys",
+        "MosaicJSON built — zoom %d–%d, quadkey_zoom %d, %d quadkeys, "
+        "assets/quadkey min=%d max=%d mean=%.1f",
         mosaic.minzoom,
         mosaic.maxzoom,
-        len(mosaic.tiles),
+        mosaic.quadkey_zoom,
+        len(tiles),
+        min(assets_per_quadkey),
+        max(assets_per_quadkey),
+        sum(assets_per_quadkey) / len(assets_per_quadkey),
     )
     return mosaic.model_dump()
 
@@ -152,6 +181,16 @@ def main():
         default=int(os.environ.get("COG_MAXZOOM", "18")),
         help="Mosaic maxzoom (default: 18)",
     )
+    parser.add_argument(
+        "--quadkey-zoom",
+        type=int,
+        default=int(os.environ.get("COG_QUADKEY_ZOOM", "11")),
+        help=(
+            "Spatial-index granularity (default: 11). Must be fine enough that "
+            "a quadkey cell is smaller than a COG footprint — see "
+            "build_mosaic_dict() for why this matters."
+        ),
+    )
     args = parser.parse_args()
 
     endpoint_url = os.environ["R2_S3_ENDPOINT"]
@@ -169,7 +208,7 @@ def main():
             "check R2_BUCKET and --prefix."
         )
 
-    mosaic_dict = build_mosaic_dict(uris, args.minzoom, args.maxzoom)
+    mosaic_dict = build_mosaic_dict(uris, args.minzoom, args.maxzoom, args.quadkey_zoom)
     upload_mosaic(client, bucket, args.output, mosaic_dict)
 
 

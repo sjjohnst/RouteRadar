@@ -33,4 +33,10 @@ services:
       AWS_VIRTUAL_HOSTING:  "FALSE"
       AWS_HTTPS:            "TRUE"
       R2_BUCKET:            ${R2_BUCKET}
+      # Which MosaicJSON to serve. Override to A/B a rebuilt index without
+      # touching the production object, e.g.
+      #   MOSAIC_OUTPUT_KEY=mosaic/relief-qk11.json docker compose up -d
+      MOSAIC_OUTPUT_KEY:    ${MOSAIC_OUTPUT_KEY:-mosaic/relief.json}
+    # Hard memory limit on image to stay honest with Lambda configured memory
+    mem_limit: 4g
     restart: "no"
