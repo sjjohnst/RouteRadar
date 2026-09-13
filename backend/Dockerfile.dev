@@ -4,6 +4,12 @@
 # Titiler custom API Dockerfile
 FROM ghcr.io/developmentseed/titiler:2.2.1
 
+# WORKDIR must be /app to match the docker-compose bind mount (./backend:/app).
+# Without it, COPY lands the app at / and uvicorn resolves "main:app" from CWD /,
+# so the container runs the image's baked-in copy and the bind mount is ignored —
+# i.e. --reload silently does nothing and code edits only apply on --build.
+WORKDIR /app
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir "titiler-application==1.1.1" "mangum>=0.10.0" uvicorn[standard]

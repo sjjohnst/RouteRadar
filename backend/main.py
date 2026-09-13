@@ -48,6 +48,7 @@ import morecantile
 from pyproj import Transformer
 
 from titiler.core.errors import DEFAULT_STATUS_CODES, add_exception_handlers
+from titiler.core.middleware import CacheControlMiddleware
 from titiler.mosaic.errors import MOSAIC_STATUS_CODES
 
 from routers import mosaic
@@ -74,6 +75,35 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["GET"],
     allow_headers=["*"],
+)
+
+# Cache-Control for tile responses.
+#
+# Without this there is no Cache-Control header at all, so the browser refetches
+# every tile on every pan and no CDN will hold them — the single cheapest win
+# available on the serving path.
+#
+# Defaults: 1 h in the browser, 7 d in a shared/CDN cache. The browser TTL is
+# deliberately short because re-ingesting the relief COGs changes tile content
+# at the same URLs, and browser caches cannot be purged; a CDN can, so s-maxage
+# is free to be long. Override via TILE_CACHE_CONTROL (e.g. "no-cache" while
+# actively iterating on the relief algorithm).
+#
+# /relief/packing is excluded: it carries the scale_factor/add_offset used to
+# map metres <-> DN, so a stale copy silently mis-maps the colour ramp with no
+# error anywhere. It is one small request per page load and is already cached
+# in-process server-side, so there is nothing to gain and a silent-corruption
+# mode to lose.
+#
+# cachecontrol_max_http_code=500 means 5xx responses get no header — important
+# so a cold-start 503 is never cached in place of a tile.
+app.add_middleware(
+    CacheControlMiddleware,
+    cachecontrol=os.environ.get(
+        "TILE_CACHE_CONTROL", "public, max-age=3600, s-maxage=604800"
+    ),
+    cachecontrol_max_http_code=500,
+    exclude_path={r"^/relief/packing$"},
 )
 
 app.include_router(mosaic.router, prefix="/mosaicjson")
