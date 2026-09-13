@@ -47,6 +47,7 @@ import rasterio
 import morecantile
 from pyproj import Transformer
 
+from rio_tiler.profiles import img_profiles
 from titiler.core.errors import DEFAULT_STATUS_CODES, add_exception_handlers
 from titiler.core.middleware import CacheControlMiddleware
 from titiler.mosaic.errors import MOSAIC_STATUS_CODES
@@ -56,6 +57,9 @@ from state import load_state, r2_endpoint
 
 logger = logging.getLogger("routeradar.titiler")
 logging.basicConfig(level=logging.INFO)
+
+# Lossless webp for relief tiles - better compression than png, while still being lossless
+img_profiles["webp"] = {"quality": 100, "lossless": True}
 
 
 @asynccontextmanager
