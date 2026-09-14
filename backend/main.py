@@ -11,32 +11,9 @@ import os
 import logging
 from contextlib import asynccontextmanager
 
-# --- CLOUDFLARE R2 WORKAROUND ---
-# Lambda env vars can't use the standard AWS_* names (they're reserved),
-# so we inject our R2 keys from R2_* vars before anything imports boto3/GDAL.
-# We also clear AWS_SESSION_TOKEN (set by the Lambda IAM role) because R2
-# doesn't support STS session tokens, and we set GDAL S3 config as real OS
-# env vars (rasterio ≥1.4 blocks setting AWS_* creds via rasterio.Env).
-if "R2_ACCESS_KEY_ID" in os.environ:
-    os.environ["AWS_ACCESS_KEY_ID"]     = os.environ["R2_ACCESS_KEY_ID"]
-    os.environ["AWS_SECRET_ACCESS_KEY"] = os.environ["R2_SECRET_ACCESS_KEY"]
-    # R2 only accepts its own region slugs (auto, wnam, enam, …), not AWS
-    # region names. Lambda injects AWS_REGION=ca-central-1; unset it entirely
-    # so GDAL/boto3 don't send it to R2. We pass region_name="auto" explicitly
-    # in our boto3 client (state.py), and GDAL uses the endpoint URL directly.
-    os.environ.pop("AWS_REGION", None)
-    os.environ.pop("AWS_DEFAULT_REGION", None)
-
-# Always clear the session token so GDAL/boto3 don't send it to R2.
-os.environ.pop("AWS_SESSION_TOKEN", None)
-
-# Set GDAL S3 driver config as real OS env vars — rasterio.Env blocks AWS_*
-# credential vars in newer versions, but GDAL reads these from the process env.
-_r2_endpoint_raw = os.environ.get("R2_S3_ENDPOINT", "")
-if _r2_endpoint_raw:
-    os.environ["AWS_S3_ENDPOINT"]      = _r2_endpoint_raw.replace("https://", "")
-os.environ["AWS_VIRTUAL_HOSTING"]      = "NO"
-os.environ["AWS_HTTPS"]                = "YES"
+# Must run before rasterio/boto3/GDAL are imported below — see r2_env.py.
+from r2_env import configure_r2_environment
+configure_r2_environment()
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware

@@ -14,7 +14,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir "titiler-application==1.1.1" "mangum>=0.10.0" uvicorn[standard]
 
-COPY __init__.py state.py routers.py main.py ./
+COPY __init__.py r2_env.py state.py routers.py main.py ./
 
 # GDAL/VSI tuning. Kept deliberately close to the production Dockerfile so
 # local timings are representative; see the notes on the memory-sensitive vars.

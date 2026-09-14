@@ -27,6 +27,7 @@ RUN cp /usr/lib64/libexpat.so.1 /asset/
 
 # Copy application code
 COPY __init__.py  /asset/__init__.py
+COPY r2_env.py    /asset/r2_env.py
 COPY state.py     /asset/state.py
 COPY routers.py   /asset/routers.py
 COPY main.py      /asset/main.py

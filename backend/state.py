@@ -21,8 +21,12 @@ _cache: dict = {}
 
 
 def r2_endpoint() -> str:
-    """Return the R2 S3 endpoint URL from whichever env var is set."""
-    return os.environ.get("AWS_S3_ENDPOINT_URL") or os.environ["R2_S3_ENDPOINT"]
+    """Return the R2 S3 endpoint URL, scheme included, as boto3 wants it.
+
+    r2_env.configure_r2_environment() has already validated that this is set,
+    and derives GDAL's scheme-less AWS_S3_ENDPOINT from the same value.
+    """
+    return os.environ["R2_S3_ENDPOINT"]
 
 
 def load_state() -> dict:
