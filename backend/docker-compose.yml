@@ -13,15 +13,23 @@
 #   cd frontend && npm run deploy  ← Cloudflare Pages reads .env.production
 #   Push backend image to ECR → Lambda picks it up
 
+# Pinned so container/image names stay `routeradar-backend-*` regardless of
+# which directory this file is invoked from (Compose otherwise derives the
+# project name from the directory name — "backend" here, which collides with
+# the service name and reads as "backend-backend").
+name: routeradar
+
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile.dev      # uvicorn + live-reload
+      context: .
+      dockerfile: Dockerfile
+      target: dev                    # uvicorn + live-reload; shares the `deps`
+                                      # stage with the Lambda image (default target)
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app               # live-reload on code changes
+      - .:/app                       # live-reload on code changes
     environment:
       TITILER_CORS_ORIGINS: '["*"]'
       # Only the R2_* vars are passed in. backend/r2_env.py derives every AWS_*

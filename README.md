@@ -53,7 +53,7 @@ VITE_BACKEND_URL=http://localhost:8000
 ### 3. Start the backend
 
 ```bash
-docker compose up --build
+cd backend && docker compose up --build
 ```
 
 The backend (uvicorn, live-reload) starts at **http://localhost:8000**.
@@ -102,8 +102,8 @@ Build and push the production image to ECR, then apply Terraform:
 cd infra/terraform && terraform apply
 ```
 
-The production Dockerfile (`backend/Dockerfile`) uses the AWS Lambda Python runtime.
-The dev Dockerfile (`backend/Dockerfile.dev`) uses uvicorn — only used by `docker compose`.
+`backend/Dockerfile` has two build targets: the default (last) stage for the AWS Lambda
+Python runtime, and `dev` (uvicorn, live-reload) used by `backend/docker-compose.yml`.
 
 ---
 
@@ -167,10 +167,9 @@ pytest -m integration     # includes live STAC API calls
 ```
 RouteRadar/
 ├── .env                    # R2 credentials — gitignored
-├── docker-compose.yml      # Backend dev stack (uvicorn, live-reload)
 ├── backend/
-│   ├── Dockerfile          # Production image (AWS Lambda runtime)
-│   ├── Dockerfile.dev      # Dev image (uvicorn)
+│   ├── docker-compose.yml  # Backend dev stack (uvicorn, live-reload)
+│   ├── Dockerfile          # Lambda image (default target) + dev target (uvicorn)
 │   ├── main.py
 │   ├── routers.py
 │   └── state.py

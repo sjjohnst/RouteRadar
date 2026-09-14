@@ -1,0 +1,21 @@
+[project]
+name = "routeradar-backend"
+version = "0.1.0"
+requires-python = "==3.12.*"
+dependencies = [
+    "titiler-application==1.1.1",
+    "mangum>=0.10.0",
+    "boto3",
+]
+
+[dependency-groups]
+dev = [
+    "uvicorn[standard]",
+]
+
+[tool.uv]
+# This is a Lambda handler bundle, not a distributable package — don't try to
+# build/install it as one.
+package = false
+# Matches the old `pip install --no-binary pydantic` in the pre-uv Dockerfile.
+no-binary-package = ["pydantic"]
