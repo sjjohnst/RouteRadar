@@ -1,16 +1,16 @@
 """state.py — lazy-loaded in-process cache for mosaic and packing metadata.
 
 Extracted into its own module to break the circular import between main.py
-(which imports routers) and routers.py (which needs _load_state).
+(which imports routers) and routers.py (which needs load_state).
 """
 
 import json
 import logging
 import os
+import time
 
 import boto3
 from botocore.config import Config
-import rasterio
 
 logger = logging.getLogger("routeradar.titiler")
 
@@ -18,21 +18,34 @@ DEFAULT_SCALE_FACTOR = float(os.environ.get("COG_SCALE_FACTOR", "0.01"))
 DEFAULT_ADD_OFFSET   = float(os.environ.get("COG_ADD_OFFSET",   "0.0"))
 MOSAIC_KEY           = os.environ.get("MOSAIC_OUTPUT_KEY", "mosaic/relief.json")
 
+# How long a warm Lambda container keeps serving its in-process copy of the
+# MosaicJSON before re-fetching. Without this, a warm container would serve a
+# stale mosaic indefinitely after a re-ingest, until it happened to cold-start.
+CACHE_TTL_SECONDS = int(os.environ.get("MOSAIC_CACHE_TTL_SECONDS", "3600"))
+
 _cache: dict = {}
+_cached_at: float = 0.0
 
 
 def r2_endpoint() -> str:
-    """Return the R2 S3 endpoint URL from whichever env var is set."""
-    return os.environ.get("AWS_S3_ENDPOINT_URL") or os.environ["R2_S3_ENDPOINT"]
+    """Return the R2 S3 endpoint URL, scheme included, as boto3 wants it.
+
+    r2_env.configure_r2_environment() has already validated that this is set,
+    and derives GDAL's scheme-less AWS_S3_ENDPOINT from the same value.
+    """
+    return os.environ["R2_S3_ENDPOINT"]
 
 
 def load_state() -> dict:
     """Fetch MosaicJSON and packing metadata from R2; cache in-process.
 
     Called on the first request to the Lambda container. Subsequent calls
-    within the same warm instance return the cached dict immediately.
+    within the same warm instance return the cached dict immediately, until
+    CACHE_TTL_SECONDS elapses, at which point it's re-fetched from R2.
     """
-    if _cache:
+    global _cached_at
+
+    if _cache and (time.time() - _cached_at) < CACHE_TTL_SECONDS:
         return _cache
 
     bucket       = os.environ["R2_BUCKET"]
@@ -52,27 +65,30 @@ def load_state() -> dict:
     mosaic_dict = json.loads(response["Body"].read())
     logger.info("MosaicJSON loaded — %d quadkeys", len(mosaic_dict.get("tiles", {})))
 
-    # Read scale_factor / add_offset from a sample COG's dataset-level tags.
-    scale_factor = DEFAULT_SCALE_FACTOR
-    add_offset   = DEFAULT_ADD_OFFSET
-    try:
-        tiles: dict = mosaic_dict.get("tiles", {})
-        sample_uri: str | None = next(
-            (assets[0] for assets in tiles.values() if assets), None
+    # Packing constants are stamped into the MosaicJSON by build_mosaic.py, so
+    # they cost nothing here — no COG is opened on the tile path. Mosaics built
+    # before that change lack the keys; fall back to the env defaults and say so
+    # loudly, because a wrong scale silently mis-maps the colour ramp instead of
+    # raising anywhere.
+    scale_factor = mosaic_dict.get("scale_factor")
+    add_offset   = mosaic_dict.get("add_offset")
+    if scale_factor is None or add_offset is None:
+        logger.warning(
+            "MosaicJSON carries no packing metadata — falling back to "
+            "scale_factor=%s, add_offset=%s. Rebuild the mosaic with "
+            "ingestion/build_mosaic.py to stamp the real values.",
+            DEFAULT_SCALE_FACTOR, DEFAULT_ADD_OFFSET,
         )
-        if sample_uri:
-            # GDAL S3 credentials are set as real OS env vars at startup (main.py).
-            # rasterio ≥1.4 blocks AWS_* credential vars inside rasterio.Env,
-            # so we open the COG directly — GDAL reads credentials from the process env.
-            with rasterio.open(sample_uri) as src:
-                tags = src.tags()
-                scale_factor = float(tags.get("scale_factor", DEFAULT_SCALE_FACTOR))
-                add_offset   = float(tags.get("add_offset",   DEFAULT_ADD_OFFSET))
-            logger.info("Packing metadata: scale_factor=%s, add_offset=%s", scale_factor, add_offset)
-    except Exception as exc:
-        logger.warning("Could not read packing metadata from COG, using defaults: %s", exc)
+        scale_factor = DEFAULT_SCALE_FACTOR
+        add_offset   = DEFAULT_ADD_OFFSET
+    else:
+        logger.info(
+            "Packing metadata: scale_factor=%s, add_offset=%s",
+            scale_factor, add_offset,
+        )
 
     _cache["mosaic_dict"]  = mosaic_dict
     _cache["scale_factor"] = scale_factor
     _cache["add_offset"]   = add_offset
+    _cached_at = time.time()
     return _cache

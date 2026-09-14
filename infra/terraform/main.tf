@@ -101,7 +101,7 @@ resource "aws_lambda_function" "backend" {
   image_uri    = "${aws_ecr_repository.backend.repository_url}:${var.image_tag}"
 
   architectures = ["x86_64"] # matches --platform=linux/amd64 in the Dockerfile
-  publish       = true        # required for provisioned concurrency (can't use $LATEST)
+  publish       = true       # required for provisioned concurrency (can't use $LATEST)
 
   # TiTiler reads entire COG headers and can be CPU-intensive for mosaic builds.
   # 3 GB memory also gives ~2 vCPUs. Adjust down once you have real metrics.
@@ -110,22 +110,20 @@ resource "aws_lambda_function" "backend" {
 
   environment {
     variables = {
-      # Cloudflare R2 — credentials injected as R2_* so main.py can remap
-      # them to AWS_* before GDAL initialises (see main.py R2 workaround).
+      # Cloudflare R2. Only the R2_* vars are set here: backend/r2_env.py
+      # derives every AWS_* var GDAL and boto3 need from them at import, before
+      # GDAL initialises. Setting them here as well would duplicate that
+      # mapping in a second place that can silently drift from it.
       R2_ACCESS_KEY_ID     = var.r2_access_key_id
       R2_SECRET_ACCESS_KEY = var.r2_secret_access_key
       R2_S3_ENDPOINT       = var.r2_s3_endpoint
       R2_BUCKET            = var.r2_bucket
 
-      # GDAL S3 driver — must point at R2, not real AWS.
-      AWS_S3_ENDPOINT     = replace(var.r2_s3_endpoint, "https://", "")
-      AWS_VIRTUAL_HOSTING = "NO"   # GDAL treats any non-empty string as true; use NO/0 not FALSE
-      AWS_HTTPS           = "YES"
-
       # Pre-built MosaicJSON location in R2.
       MOSAIC_OUTPUT_KEY = var.mosaic_key
 
-      # Packing metadata fallbacks (overridden at startup from COG tags).
+      # Packing metadata fallbacks, used only if the MosaicJSON carries no
+      # scale_factor/add_offset (state.py warns when it falls back to these).
       COG_SCALE_FACTOR = "0.01"
       COG_ADD_OFFSET   = "0.0"
     }
@@ -159,8 +157,8 @@ resource "aws_lambda_alias" "live" {
 resource "aws_lambda_provisioned_concurrency_config" "live" {
   count = var.lambda_provisioned_concurrency > 0 ? 1 : 0
 
-  function_name                  = aws_lambda_function.backend.function_name
-  qualifier                      = aws_lambda_alias.live.name
+  function_name                     = aws_lambda_function.backend.function_name
+  qualifier                         = aws_lambda_alias.live.name
   provisioned_concurrent_executions = var.lambda_provisioned_concurrency
 }
 

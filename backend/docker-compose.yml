@@ -1,0 +1,48 @@
+# docker-compose.yml — backend only
+#
+# Runtimes
+# ────────
+# Local dev (full stack):
+#   docker compose up --build      ← backend on :8000 with live-reload
+#   cd frontend && npm run dev     ← Vite reads .env.local → localhost:8000
+#
+# Local dev (frontend → Lambda):
+#   cd frontend && npm run dev     ← change VITE_BACKEND_URL in .env.local
+#
+# Deploy:
+#   cd frontend && npm run deploy  ← Cloudflare Pages reads .env.production
+#   Push backend image to ECR → Lambda picks it up
+
+# Pinned so container/image names stay `routeradar-backend-*` regardless of
+# which directory this file is invoked from (Compose otherwise derives the
+# project name from the directory name — "backend" here, which collides with
+# the service name and reads as "backend-backend").
+name: routeradar
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev                    # uvicorn + live-reload; shares the `deps`
+                                      # stage with the Lambda image (default target)
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app                       # live-reload on code changes
+    environment:
+      TITILER_CORS_ORIGINS: '["*"]'
+      # Only the R2_* vars are passed in. backend/r2_env.py derives every AWS_*
+      # var GDAL and boto3 need from these, so local dev runs the same mapping
+      # Lambda does instead of a hand-maintained duplicate that can disagree.
+      R2_ACCESS_KEY_ID:     ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_S3_ENDPOINT:       ${R2_S3_ENDPOINT}
+      R2_BUCKET:            ${R2_BUCKET}
+      # Which MosaicJSON to serve. Override to A/B a rebuilt index without
+      # touching the production object, e.g.
+      #   MOSAIC_OUTPUT_KEY=mosaic/relief-qk11.json docker compose up -d
+      MOSAIC_OUTPUT_KEY:    ${MOSAIC_OUTPUT_KEY:-mosaic/relief-qk11.json}
+    # Hard memory limit on image to stay honest with Lambda configured memory
+    mem_limit: 4g
+    restart: "no"

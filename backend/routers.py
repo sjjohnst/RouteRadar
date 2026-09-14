@@ -2,9 +2,10 @@
 
 app/routers.py
 
-Exposes two endpoints for the frontend map application:
-  GET /mosaic/tiles/{z}/{x}/{y}    — raster tile PNG/WebP
-  GET /mosaic/tilejson.json        — TileJSON 3.0 metadata
+Exposes the mosaic tile endpoints for the frontend map application:
+  GET /mosaicjson/tiles/{tileMatrixSetId}/{z}/{x}/{y}  — raster tile PNG/WebP
+  GET /mosaicjson/{tileMatrixSetId}/tilejson.json      — TileJSON 3.0 metadata
+  GET /mosaicjson/point/{lon},{lat}                    — packed value at a point
 
 """
 
@@ -21,3 +22,16 @@ mosaic = MosaicTilerFactory(
     backend=MemoryBackend,
     path_dependency=_mosaic_path
 )
+
+# MosaicTilerFactory registers routes (/info, /*/assets, /*/map.html) that this
+# app never uses and that leak the private R2 COG URIs behind each mosaic tile
+# — drop them rather than exposing that surface just because the factory
+# includes it by default. Only tiles/tilejson/point stay, matching README.md's
+# documented API.
+mosaic.router.routes = [
+    route
+    for route in mosaic.router.routes
+    if "assets" not in route.path
+    and "map.html" not in route.path
+    and route.path not in ("/info", "/info.geojson")
+]

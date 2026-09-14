@@ -37,9 +37,9 @@ variable "ecr_image_retention_count" {
 # ---------------------------------------------------------------------------
 
 variable "lambda_memory_mb" {
-  description = "Lambda memory in MB. Also controls vCPU allocation (1792 MB = 1 vCPU, 3008 MB ≈ 2 vCPUs)."
+  description = "Lambda memory in MB. Also controls vCPU allocation (1792 MB ~= 1 vCPU)."
   type        = number
-  default     = 1536
+  default     = 1792
 }
 
 variable "lambda_timeout_s" {
@@ -89,7 +89,7 @@ variable "r2_bucket" {
 variable "mosaic_key" {
   description = "R2 object key for the pre-built MosaicJSON file."
   type        = string
-  default     = "mosaic/relief.json"
+  default     = "mosaic/relief-qk11.json"
 }
 
 # ---------------------------------------------------------------------------

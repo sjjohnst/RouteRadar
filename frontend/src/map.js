@@ -160,10 +160,14 @@ export async function buildReliefTileUrl(
         rescale:      `${vminDN},${vmaxDN}`,
         colormap_name: colormap,
     });
+    // Request .webp explicitly. Without this TiTiler auto-selects JPEG 
+    // so relief would be served lossily (RMSE ~6.9, single pixels off by up
+    // to 177/255). Requires that the backend renders WebP losslessly.
+    //
     // Use the "tiler://" custom protocol so MapLibre routes these tiles through
     // registerTilerProtocol(), which retries 503s per-tile without touching the
     // cache of already-loaded tiles (avoids blurry zoom-out fallback on retry).
-    const httpsUrl = `${BACKEND_URL}/mosaicjson/tiles/WebMercatorQuad/{z}/{x}/{y}?${params.toString()}`;
+    const httpsUrl = `${BACKEND_URL}/mosaicjson/tiles/WebMercatorQuad/{z}/{x}/{y}.webp?${params.toString()}`;
     return httpsUrl.replace(/^https:\/\//, 'tiler://');
 }
 
@@ -186,7 +190,7 @@ export async function initMap() {
         pitchWithRotate: false,
         touchZoomRotate: false,
         // Cap concurrent tile fetches to stay well under the Lambda account
-        maxParallelImageRequests: 4,
+        maxParallelImageRequests: 24,
         style: {
             version: 8,
             sources: {
