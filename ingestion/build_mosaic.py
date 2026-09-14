@@ -2,6 +2,8 @@
 
 Scans a prefix in Cloudflare R2 for Cloud-Optimized GeoTIFFs, builds a
 MosaicJSON from them, and uploads the result back to R2 as a JSON file.
+The COGs' scale_factor / add_offset tags are copied into the mosaic so the
+index is self-describing and the backend never opens a COG to read them.
 
 Run this script after ingestion whenever new COGs are added to R2.  The
 Lambda backend will then fetch this pre-built file at cold-start instead
@@ -30,6 +32,7 @@ import logging
 import os
 
 import boto3
+import rasterio
 from botocore.client import Config
 from cogeo_mosaic.mosaic import MosaicJSON
 from dotenv import load_dotenv
@@ -115,6 +118,34 @@ def build_mosaic_dict(
         sum(assets_per_quadkey) / len(assets_per_quadkey),
     )
     return mosaic.model_dump()
+
+
+def read_packing(uri: str) -> dict:
+    """Read the scale_factor / add_offset stamped into a COG's dataset tags.
+
+    These are written by data_ingestion._write_cog when the COGs are produced.
+    Copying them into the MosaicJSON makes the index self-describing: the same
+    run that writes the pixels writes the constants needed to interpret them,
+    so the two cannot drift. The backend then gets them for free from the
+    mosaic it already fetches, instead of opening a COG over the network on
+    every cold start just to read two numbers.
+
+    Returns {} if the tags are absent; the backend falls back to its env
+    defaults and logs a warning in that case.
+    """
+    with rasterio.open(uri) as src:
+        tags = src.tags()
+
+    packing = {k: float(tags[k]) for k in ("scale_factor", "add_offset") if k in tags}
+    if len(packing) == 2:
+        logger.info("Packing metadata from %s — %s", uri, packing)
+    else:
+        logger.warning(
+            "No scale_factor/add_offset tags on %s; the mosaic will not carry "
+            "packing metadata and the backend will fall back to its defaults.",
+            uri,
+        )
+    return packing
 
 
 def upload_mosaic(client, bucket: str, key: str, mosaic_dict: dict) -> None:
@@ -209,6 +240,13 @@ def main():
         )
 
     mosaic_dict = build_mosaic_dict(uris, args.minzoom, args.maxzoom, args.quadkey_zoom)
+
+    # Stamp the packing constants alongside the index. These are custom keys:
+    # cogeo-mosaic's MosaicJSON model ignores unknown fields, so they survive
+    # in the uploaded JSON but are dropped if the mosaic is ever round-tripped
+    # back through MosaicJSON.
+    mosaic_dict.update(read_packing(uris[0]))
+
     upload_mosaic(client, bucket, args.output, mosaic_dict)
 
 

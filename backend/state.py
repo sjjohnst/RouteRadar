@@ -1,7 +1,7 @@
 """state.py — lazy-loaded in-process cache for mosaic and packing metadata.
 
 Extracted into its own module to break the circular import between main.py
-(which imports routers) and routers.py (which needs _load_state).
+(which imports routers) and routers.py (which needs load_state).
 """
 
 import json
@@ -10,7 +10,6 @@ import os
 
 import boto3
 from botocore.config import Config
-import rasterio
 
 logger = logging.getLogger("routeradar.titiler")
 
@@ -52,25 +51,27 @@ def load_state() -> dict:
     mosaic_dict = json.loads(response["Body"].read())
     logger.info("MosaicJSON loaded — %d quadkeys", len(mosaic_dict.get("tiles", {})))
 
-    # Read scale_factor / add_offset from a sample COG's dataset-level tags.
-    scale_factor = DEFAULT_SCALE_FACTOR
-    add_offset   = DEFAULT_ADD_OFFSET
-    try:
-        tiles: dict = mosaic_dict.get("tiles", {})
-        sample_uri: str | None = next(
-            (assets[0] for assets in tiles.values() if assets), None
+    # Packing constants are stamped into the MosaicJSON by build_mosaic.py, so
+    # they cost nothing here — no COG is opened on the tile path. Mosaics built
+    # before that change lack the keys; fall back to the env defaults and say so
+    # loudly, because a wrong scale silently mis-maps the colour ramp instead of
+    # raising anywhere.
+    scale_factor = mosaic_dict.get("scale_factor")
+    add_offset   = mosaic_dict.get("add_offset")
+    if scale_factor is None or add_offset is None:
+        logger.warning(
+            "MosaicJSON carries no packing metadata — falling back to "
+            "scale_factor=%s, add_offset=%s. Rebuild the mosaic with "
+            "ingestion/build_mosaic.py to stamp the real values.",
+            DEFAULT_SCALE_FACTOR, DEFAULT_ADD_OFFSET,
         )
-        if sample_uri:
-            # GDAL S3 credentials are set as real OS env vars at startup (main.py).
-            # rasterio ≥1.4 blocks AWS_* credential vars inside rasterio.Env,
-            # so we open the COG directly — GDAL reads credentials from the process env.
-            with rasterio.open(sample_uri) as src:
-                tags = src.tags()
-                scale_factor = float(tags.get("scale_factor", DEFAULT_SCALE_FACTOR))
-                add_offset   = float(tags.get("add_offset",   DEFAULT_ADD_OFFSET))
-            logger.info("Packing metadata: scale_factor=%s, add_offset=%s", scale_factor, add_offset)
-    except Exception as exc:
-        logger.warning("Could not read packing metadata from COG, using defaults: %s", exc)
+        scale_factor = DEFAULT_SCALE_FACTOR
+        add_offset   = DEFAULT_ADD_OFFSET
+    else:
+        logger.info(
+            "Packing metadata: scale_factor=%s, add_offset=%s",
+            scale_factor, add_offset,
+        )
 
     _cache["mosaic_dict"]  = mosaic_dict
     _cache["scale_factor"] = scale_factor
