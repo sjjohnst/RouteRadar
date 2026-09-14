@@ -29,9 +29,9 @@ frontend/     # Vite + MapLibre GL: interactive map (Cloudflare Pages)
 - Node.js ≥ 22
 - A Cloudflare R2 bucket with COGs already ingested (see [Ingestion](#ingestion))
 
-### 1. Root environment variables
+### 1. Backend environment variables
 
-Create `.env` in the project root (gitignored):
+Create `backend/.env` (gitignored) — `docker compose` loads it automatically from that directory:
 
 ```env
 R2_ACCESS_KEY_ID=your_r2_access_key
@@ -102,6 +102,14 @@ Build and push the production image to ECR, then apply Terraform:
 cd infra/terraform && terraform apply
 ```
 
+`terraform apply` manages infra/config (env vars, IAM, API Gateway) — it does **not**
+push new application code, since the Lambda's `image_uri` tag doesn't change between
+deploys. To ship a new image:
+
+```bash
+./backend/deploy-backend.sh [image-tag]   # build, push to ECR, update the Lambda
+```
+
 `backend/Dockerfile` has two build targets: the default (last) stage for the AWS Lambda
 Python runtime, and `dev` (uvicorn, live-reload) used by `backend/docker-compose.yml`.
 
@@ -166,10 +174,11 @@ pytest -m integration     # includes live STAC API calls
 
 ```
 RouteRadar/
-├── .env                    # R2 credentials — gitignored
 ├── backend/
+│   ├── .env                # R2 credentials — gitignored
 │   ├── docker-compose.yml  # Backend dev stack (uvicorn, live-reload)
 │   ├── Dockerfile          # Lambda image (default target) + dev target (uvicorn)
+│   ├── pyproject.toml      # uv-managed deps (uv.lock alongside)
 │   ├── main.py
 │   ├── routers.py
 │   └── state.py
