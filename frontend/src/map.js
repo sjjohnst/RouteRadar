@@ -190,7 +190,7 @@ export async function initMap() {
         pitchWithRotate: false,
         touchZoomRotate: false,
         // Cap concurrent tile fetches to stay well under the Lambda account
-        maxParallelImageRequests: 24,
+        maxParallelImageRequests: 8,
         style: {
             version: 8,
             sources: {
