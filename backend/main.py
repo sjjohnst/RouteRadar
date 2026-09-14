@@ -38,14 +38,10 @@ if _r2_endpoint_raw:
 os.environ["AWS_VIRTUAL_HOSTING"]      = "NO"
 os.environ["AWS_HTTPS"]                = "YES"
 
-from cogeo_mosaic.backends.memory import MemoryBackend
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from mangum import Mangum
-import rasterio
-import morecantile
-from pyproj import Transformer
 
 from rio_tiler.profiles import img_profiles
 from titiler.core.errors import DEFAULT_STATUS_CODES, add_exception_handlers
@@ -53,9 +49,9 @@ from titiler.core.middleware import CacheControlMiddleware
 from titiler.mosaic.errors import MOSAIC_STATUS_CODES
 
 from routers import mosaic
-from state import load_state, r2_endpoint
+from state import load_state
 
-logger = logging.getLogger("routeradar.titiler")
+# Root log config for the process; modules get their own "routeradar.titiler" logger.
 logging.basicConfig(level=logging.INFO)
 
 # Lossless webp for relief tiles - better compression than png, while still being lossless
@@ -120,7 +116,7 @@ handler = Mangum(app)
 
 
 @app.get("/relief/packing", summary="Packing metadata for relief COGs")
-async def relief_packing(request: Request):
+def relief_packing(request: Request):
     """
     Returns the scale_factor and add_offset stamped into the relief COGs.
     Clients use these to convert physical units (metres) <-> raw DN:
@@ -132,65 +128,3 @@ async def relief_packing(request: Request):
         "scale_factor": state["scale_factor"],
         "add_offset":   state["add_offset"],
     })
-
-
-@app.get("/relief/point", summary="Query relief elevation at a geographic point")
-async def relief_point(
-    request: Request,
-    lng: float = Query(..., description="Longitude (WGS-84 decimal degrees)"),
-    lat: float = Query(..., description="Latitude  (WGS-84 decimal degrees)"),
-):
-    """
-    Returns the interpolated surface elevation (in metres) at the given
-    longitude/latitude by reading the in-memory mosaic directly with rasterio.
-
-    Response schema:
-      { "lng": float, "lat": float, "elevation_m": float | null }
-    """
-    state        = load_state()
-    mosaic_dict  = state["mosaic_dict"]
-    scale_factor = state["scale_factor"]
-    add_offset   = state["add_offset"]
-
-    try:
-        backend = MemoryBackend(mosaic_dict)
-        # get_assets takes tile (x, y, z) coordinates, not lng/lat.
-        # Convert using the mosaic's quadkey zoom level.
-        tms = morecantile.tms.get("WebMercatorQuad")
-        tile = tms.tile(lng, lat, backend.quadkey_zoom)
-        assets = backend.get_assets(tile.x, tile.y, tile.z)
-        if not assets:
-            return JSONResponse({"lng": lng, "lat": lat, "elevation_m": None})
-
-        # GDAL S3 credentials are set as OS env vars at module load (top of file).
-        # rasterio ≥1.4 blocks AWS_* creds in rasterio.Env, so no Env wrapper needed.
-        # COGs are in EPSG:3857 — reproject the WGS-84 point before sampling.
-        _wgs84_to_3857 = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
-        x_3857, y_3857 = _wgs84_to_3857.transform(lng, lat)
-
-        for asset in assets:
-            try:
-                with rasterio.open(asset) as src:
-                    b = src.bounds
-                    if not (b.left <= x_3857 <= b.right and b.bottom <= y_3857 <= b.top):
-                        continue
-                    vals = list(src.sample([(x_3857, y_3857)], indexes=1))
-                    raw = float(vals[0][0])
-                    if src.nodata is not None and raw == src.nodata:
-                        continue
-                    elevation_m = raw * scale_factor + add_offset
-                    return JSONResponse({"lng": lng,
-                                         "lat": lat,
-                                         "elevation_m": round(elevation_m, 3)})
-            except Exception as asset_exc:
-                logger.warning("relief/point: failed reading asset %s: %s", asset, asset_exc)
-                continue
-
-        return JSONResponse({"lng": lng, "lat": lat, "elevation_m": None})
-
-    except Exception as exc:
-        logger.error("Error querying relief point (%.5f, %.5f): %s", lng, lat, exc)
-        return JSONResponse(
-            {"detail": "Internal error querying relief point."},
-            status_code=500,
-        )

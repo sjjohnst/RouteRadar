@@ -145,7 +145,7 @@ pytest -m integration     # includes live STAC API calls
 |---|---|
 | `GET /mosaicjson/tiles/{z}/{x}/{y}` | Raster tile (PNG/WebP) |
 | `GET /mosaicjson/tilejson.json` | TileJSON 3.0 metadata |
-| `GET /relief/point?lng=&lat=` | Elevation (metres) at a coordinate |
+| `GET /mosaicjson/point/{lon},{lat}` | Packed relief value at a coordinate |
 | `GET /relief/packing` | `scale_factor` / `add_offset` metadata |
 
 ---
