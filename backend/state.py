@@ -7,6 +7,7 @@ Extracted into its own module to break the circular import between main.py
 import json
 import logging
 import os
+import time
 
 import boto3
 from botocore.config import Config
@@ -17,7 +18,13 @@ DEFAULT_SCALE_FACTOR = float(os.environ.get("COG_SCALE_FACTOR", "0.01"))
 DEFAULT_ADD_OFFSET   = float(os.environ.get("COG_ADD_OFFSET",   "0.0"))
 MOSAIC_KEY           = os.environ.get("MOSAIC_OUTPUT_KEY", "mosaic/relief.json")
 
+# How long a warm Lambda container keeps serving its in-process copy of the
+# MosaicJSON before re-fetching. Without this, a warm container would serve a
+# stale mosaic indefinitely after a re-ingest, until it happened to cold-start.
+CACHE_TTL_SECONDS = int(os.environ.get("MOSAIC_CACHE_TTL_SECONDS", "3600"))
+
 _cache: dict = {}
+_cached_at: float = 0.0
 
 
 def r2_endpoint() -> str:
@@ -33,9 +40,12 @@ def load_state() -> dict:
     """Fetch MosaicJSON and packing metadata from R2; cache in-process.
 
     Called on the first request to the Lambda container. Subsequent calls
-    within the same warm instance return the cached dict immediately.
+    within the same warm instance return the cached dict immediately, until
+    CACHE_TTL_SECONDS elapses, at which point it's re-fetched from R2.
     """
-    if _cache:
+    global _cached_at
+
+    if _cache and (time.time() - _cached_at) < CACHE_TTL_SECONDS:
         return _cache
 
     bucket       = os.environ["R2_BUCKET"]
@@ -80,4 +90,5 @@ def load_state() -> dict:
     _cache["mosaic_dict"]  = mosaic_dict
     _cache["scale_factor"] = scale_factor
     _cache["add_offset"]   = add_offset
+    _cached_at = time.time()
     return _cache

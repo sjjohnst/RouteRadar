@@ -89,7 +89,7 @@ variable "r2_bucket" {
 variable "mosaic_key" {
   description = "R2 object key for the pre-built MosaicJSON file."
   type        = string
-  default     = "mosaic/relief.json"
+  default     = "mosaic/relief-qk11.json"
 }
 
 # ---------------------------------------------------------------------------

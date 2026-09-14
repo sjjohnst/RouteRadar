@@ -9,13 +9,12 @@ on the first request to each Lambda container (see state.py).
 
 import os
 import logging
-from contextlib import asynccontextmanager
 
 # Must run before rasterio/boto3/GDAL are imported below — see r2_env.py.
 from r2_env import configure_r2_environment
 configure_r2_environment()
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from mangum import Mangum
@@ -29,22 +28,21 @@ from routers import mosaic
 from state import load_state
 
 # Root log config for the process; modules get their own "routeradar.titiler" logger.
-logging.basicConfig(level=logging.INFO)
+# force=True: basicConfig() alone is a no-op and INFO logs from
+# routeradar.titiler/state.py get silently dropped without this.
+logging.basicConfig(level=logging.INFO, force=True)
 
 # Lossless webp for relief tiles - better compression than png, while still being lossless
 img_profiles["webp"] = {"quality": 100, "lossless": True}
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """No-op lifespan — state is loaded lazily on first request."""
-    yield
+assert img_profiles["webp"] == {"quality": 100, "lossless": True}, (
+    "rio_tiler.profiles.img_profiles rejected the webp override — "
+    "relief tiles would silently fall back to lossy webp"
+)
 
 
 app = FastAPI(
     title="RouteRadar TiTiler",
     description="Serves slope COG tiles from Cloudflare R2.",
-    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -55,31 +53,17 @@ app.add_middleware(
 )
 
 # Cache-Control for tile responses.
-#
-# Without this there is no Cache-Control header at all, so the browser refetches
-# every tile on every pan and no CDN will hold them — the single cheapest win
-# available on the serving path.
-#
-# Defaults: 1 h in the browser, 7 d in a shared/CDN cache. The browser TTL is
-# deliberately short because re-ingesting the relief COGs changes tile content
-# at the same URLs, and browser caches cannot be purged; a CDN can, so s-maxage
-# is free to be long. Override via TILE_CACHE_CONTROL (e.g. "no-cache" while
-# actively iterating on the relief algorithm).
-#
-# /relief/packing is excluded: it carries the scale_factor/add_offset used to
-# map metres <-> DN, so a stale copy silently mis-maps the colour ramp with no
-# error anywhere. It is one small request per page load and is already cached
-# in-process server-side, so there is nothing to gain and a silent-corruption
-# mode to lose.
-#
-# cachecontrol_max_http_code=500 means 5xx responses get no header — important
-# so a cold-start 503 is never cached in place of a tile.
+# cachecontrol_max_http_code=204: only responses strictly below 204 (i.e. a
+# normal 200 tile) get the header. Titiler returns 204 No Content, not 404,
+# for a tile with no covering COG — caching that in the browser for an hour
+# means re-ingesting new coverage doesn't show up there until the cache
+# expires. 4xx/5xx are excluded for the same reason.
 app.add_middleware(
     CacheControlMiddleware,
     cachecontrol=os.environ.get(
         "TILE_CACHE_CONTROL", "public, max-age=3600, s-maxage=604800"
     ),
-    cachecontrol_max_http_code=500,
+    cachecontrol_max_http_code=204,
     exclude_path={r"^/relief/packing$"},
 )
 
@@ -93,7 +77,7 @@ handler = Mangum(app)
 
 
 @app.get("/relief/packing", summary="Packing metadata for relief COGs")
-def relief_packing(request: Request):
+def relief_packing():
     """
     Returns the scale_factor and add_offset stamped into the relief COGs.
     Clients use these to convert physical units (metres) <-> raw DN:
