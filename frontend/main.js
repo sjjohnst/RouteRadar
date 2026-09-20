@@ -3,7 +3,6 @@ import maplibregl from 'maplibre-gl';
 import { MapLibreSearchControl } from '@stadiamaps/maplibre-search-box';
 import '@stadiamaps/maplibre-search-box/dist/maplibre-search-box.css';
 import { initMap } from './src/map.js';
-import { registerTilerProtocol } from './src/tilerProtocol.js';
 import { containsPoint } from './src/aoi.js';
 import { setupReliefControls } from './src/ui/mosaicControls.js';
 import { initClickLocateTool } from './src/tools/clickLocate.js';
@@ -11,10 +10,6 @@ import { initDistanceMeasureTool } from './src/tools/distanceMeasure.js';
 import { setupQuebecPublicLandControls } from './src/ui/quebecPublicLandControls.js';
 import { setupInfoTool } from './src/tools/infoTool.js';
 import { initHelpGuide } from './src/ui/helpGuide.js';
-
-// Register custom "tiler://" protocol for per-tile 503 retry with back-off.
-// Must be called before initMap() so the source URL is already handled.
-registerTilerProtocol(maplibregl);
 
 // Bootstrap map
 const map = await initMap();

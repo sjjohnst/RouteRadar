@@ -1,6 +1,7 @@
-import { QUEBEC_PUBLIC_LAND_LAYER_ID } from '../map.js';
+import { layerDefaults } from '../config/layerDefaults.js';
 
 export function setupQuebecPublicLandControls(map) {
+    const { layerId } = layerDefaults.quebecPublicLand;
     const toggle = document.getElementById('toggle-quebec-public-land');
     const opacitySlider = document.getElementById('quebec-public-land-opacity');
     const opacityValue = document.getElementById('quebec-public-land-opacity-value');
@@ -8,9 +9,9 @@ export function setupQuebecPublicLandControls(map) {
     // --- Visibility toggle ---
     if (toggle) {
         toggle.addEventListener('change', () => {
-            if (map.getLayer(QUEBEC_PUBLIC_LAND_LAYER_ID)) {
+            if (map.getLayer(layerId)) {
                 map.setLayoutProperty(
-                    QUEBEC_PUBLIC_LAND_LAYER_ID,
+                    layerId,
                     'visibility',
                     toggle.checked ? 'visible' : 'none'
                 );
@@ -25,8 +26,8 @@ export function setupQuebecPublicLandControls(map) {
         opacitySlider.addEventListener('input', () => {
             const value = parseFloat(opacitySlider.value);
             opacityValue.textContent = value.toFixed(2);
-            if (map.getLayer(QUEBEC_PUBLIC_LAND_LAYER_ID)) {
-                map.setPaintProperty(QUEBEC_PUBLIC_LAND_LAYER_ID, 'raster-opacity', value);
+            if (map.getLayer(layerId)) {
+                map.setPaintProperty(layerId, 'raster-opacity', value);
             }
         });
     }

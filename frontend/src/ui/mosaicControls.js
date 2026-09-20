@@ -1,9 +1,10 @@
-import { HRDEM_RELIEF_SOURCE_ID, HRDEM_RELIEF_LAYER_ID } from '../map.js';
 import { buildReliefTileUrl } from '../layers/tileUrls.js';
 import { layerDefaults } from '../config/layerDefaults.js';
 import { initReliefColorbar, updateReliefColorbar, showReliefColorbar } from './reliefColorbar.js';
 
 export async function setupReliefControls(map) {
+    const { id: sourceId, layerId } = layerDefaults.relief;
+
     const reliefToggle        = document.getElementById('toggle-relief');
     const reliefOpacitySlider = document.getElementById('relief-opacity');
     const reliefOpacityValue  = document.getElementById('relief-opacity-value');
@@ -21,7 +22,7 @@ export async function setupReliefControls(map) {
 
     async function updateReliefSource() {
         const newUrl = await buildReliefTileUrl(vmin, vmax);
-        const source = map.getSource(HRDEM_RELIEF_SOURCE_ID);
+        const source = map.getSource(sourceId);
         if (source && typeof source.setTiles === 'function') {
             source.setTiles([newUrl]);
         }
@@ -29,9 +30,9 @@ export async function setupReliefControls(map) {
 
     if (reliefToggle) {
         reliefToggle.addEventListener('change', () => {
-            if (map.getLayer(HRDEM_RELIEF_LAYER_ID)) {
+            if (map.getLayer(layerId)) {
                 map.setLayoutProperty(
-                    HRDEM_RELIEF_LAYER_ID,
+                    layerId,
                     'visibility',
                     reliefToggle.checked ? 'visible' : 'none'
                 );
@@ -47,8 +48,8 @@ export async function setupReliefControls(map) {
         reliefOpacitySlider.addEventListener('input', () => {
             const value = parseFloat(reliefOpacitySlider.value);
             reliefOpacityValue.textContent = value.toFixed(2);
-            if (map.getLayer(HRDEM_RELIEF_LAYER_ID)) {
-                map.setPaintProperty(HRDEM_RELIEF_LAYER_ID, 'raster-opacity', value);
+            if (map.getLayer(layerId)) {
+                map.setPaintProperty(layerId, 'raster-opacity', value);
             }
         });
     }

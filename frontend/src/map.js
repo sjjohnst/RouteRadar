@@ -2,16 +2,15 @@ import maplibregl from 'maplibre-gl';
 import { layerDefaults } from './config/layerDefaults.js';
 import { AOI_BOUNDS } from './aoi.js';
 import { buildReliefTileUrl, publicLandWmsUrl } from './layers/tileUrls.js';
+import { registerTilerProtocol } from './tilerProtocol.js';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { QUEBEC_IMAGERY_URL } from './config/api.js';
 
-// Shared layer/source identifiers so UI and tools stay in sync
-export const HRDEM_RELIEF_SOURCE_ID = 'hrdem-relief';
-export const HRDEM_RELIEF_LAYER_ID = 'hrdem-relief-layer';
-export const QUEBEC_PUBLIC_LAND_SOURCE_ID = 'quebec-public-land';
-export const QUEBEC_PUBLIC_LAND_LAYER_ID = 'quebec-public-land-layer';
-
 export async function initMap() {
+    // Before the style names any tiler:// url, so MapLibre can resolve them.
+    registerTilerProtocol(maplibregl);
+
+    const { relief, quebecPublicLand } = layerDefaults;
     const quebecImageryUrl = QUEBEC_IMAGERY_URL;
     const cartoLabelsUrl = "https://maps-cartes.services.geo.ca/server2_serveur2/rest/services/BaseMaps/CBMT_TXT_3857/MapServer/WMTS/tile/1.0.0/BaseMaps_CBMT_TXT_3857/default/default028mm/{z}/{y}/{x}.png";
 
@@ -31,6 +30,8 @@ export async function initMap() {
         touchZoomRotate: false,
         // Cap concurrent tile fetches to stay well under the Lambda account
         maxParallelImageRequests: 8,
+        // Declined here so we can add our own below, prefixed and compact
+        attributionControl: false,
         style: {
             version: 8,
             sources: {
@@ -40,7 +41,7 @@ export async function initMap() {
                     tileSize: 256,
                     attribution: 'Imagery: <a href="https://mrnf.gouv.qc.ca/repertoire-geographique/vue-aerienne-quebec-imagerie-continue/" target="_blank">Ministère des Ressources naturelles et des Forêts</a>'
                 },
-                [HRDEM_RELIEF_SOURCE_ID]: {
+                [relief.id]: {
                     type: 'raster',
                     tiles: [reliefUrl],
                     tileSize: 256,
@@ -52,7 +53,7 @@ export async function initMap() {
                     tileSize: 256,
                     attribution: 'Labels: <a href="https://open.canada.ca/data/en/dataset/7dd22445-fa7f-49f4-ae9a-2cf70af8f875" target="_blank">Government of Canada</a>'
                 },
-                [QUEBEC_PUBLIC_LAND_SOURCE_ID]: {
+                [quebecPublicLand.id]: {
                     type: 'raster',
                     tiles: [quebecPublicLandUrl],
                     tileSize: 256,
@@ -61,8 +62,8 @@ export async function initMap() {
             },
             layers: [
                 { id: 'base-imagery', type: 'raster', source: 'quebec-imagery' },
-                { id: HRDEM_RELIEF_LAYER_ID, type: 'raster', source: HRDEM_RELIEF_SOURCE_ID, paint: { 'raster-opacity': layerDefaults.relief.opacity }, layout: { visibility: layerDefaults.relief.visible ? 'visible' : 'none' } },
-                { id: QUEBEC_PUBLIC_LAND_LAYER_ID, type: 'raster', source: QUEBEC_PUBLIC_LAND_SOURCE_ID, paint: { 'raster-opacity': layerDefaults.quebecPublicLand.opacity }, layout: { visibility: layerDefaults.quebecPublicLand.visible ? 'visible' : 'none' } },
+                { id: relief.layerId, type: 'raster', source: relief.id, paint: { 'raster-opacity': relief.opacity }, layout: { visibility: relief.visible ? 'visible' : 'none' } },
+                { id: quebecPublicLand.layerId, type: 'raster', source: quebecPublicLand.id, paint: { 'raster-opacity': quebecPublicLand.opacity }, layout: { visibility: quebecPublicLand.visible ? 'visible' : 'none' } },
                 { id: 'labels-layer', type: 'raster', source: 'map-labels' },
             ]
         },
@@ -73,19 +74,18 @@ export async function initMap() {
         maxBounds: AOI_BOUNDS
     });
 
-    // Remove the default attribution control if present
-    map.removeControl(map._controls.find(c => c instanceof maplibregl.AttributionControl));
-
-    // Add attribution control with custom prefix and compact styling
-    const attributionControl = new maplibregl.AttributionControl({
-        compact: true,
-        customAttribution: '© RouteRadar'
-    });
-    map.addControl(attributionControl, 'bottom-right');
+    map.addControl(
+        new maplibregl.AttributionControl({ compact: true, customAttribution: '© RouteRadar' }),
+        'bottom-right'
+    );
+    // `compact` means collapsible, not collapsed — MapLibre adds compact-show on
+    // add and only drops it on the first drag. Start folded to the ⓘ instead.
+    map.getContainer()
+        .querySelector('.maplibregl-ctrl-attrib')
+        ?.classList.remove('maplibregl-compact-show');
 
     // Add a metric scale bar in the bottom-left corner for better visibility
-    const scale = new maplibregl.ScaleControl({ maxWidth: 260, unit: 'metric' });
-    map.addControl(scale, 'bottom-left');
+    map.addControl(new maplibregl.ScaleControl({ maxWidth: 260, unit: 'metric' }), 'bottom-left');
 
     return map;
 }
