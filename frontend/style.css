@@ -469,9 +469,6 @@ body {
     pointer-events: none;
     min-width: auto;
 }
-.relief-colorbar.hidden {
-    display: none !important;
-}
 .relief-colorbar-canvas {
     display: block;
     border-radius: 20px;

@@ -1,24 +1,30 @@
 import { buildReliefTileUrl } from '../layers/tileUrls.js';
 import { layerDefaults } from '../config/layerDefaults.js';
-import { initReliefColorbar, updateReliefColorbar, showReliefColorbar } from './reliefColorbar.js';
+import { initLayerControls } from './layerControls.js';
+import { initReliefColorbar, updateReliefColorbar } from './reliefColorbar.js';
 
-export async function setupReliefControls(map) {
+export function setupReliefControls(map) {
     const { id: sourceId, layerId } = layerDefaults.relief;
 
-    const reliefToggle        = document.getElementById('toggle-relief');
-    const reliefOpacitySlider = document.getElementById('relief-opacity');
-    const reliefOpacityValue  = document.getElementById('relief-opacity-value');
-    const vminInput           = document.getElementById('relief-vmin');
-    const vmaxInput           = document.getElementById('relief-vmax');
-    const applyBtn            = document.getElementById('relief-apply-scale');
+    initLayerControls(map, {
+        layerId,
+        toggleId: 'toggle-relief',
+        opacityId: 'relief-opacity',
+        opacityValueId: 'relief-opacity-value',
+    });
+
+    // Relief alone also carries a display range, which drives both the tile
+    // URL and the colorbar the user reads it off.
+    const vminInput = document.getElementById('relief-vmin');
+    const vmaxInput = document.getElementById('relief-vmax');
+    const applyBtn = document.getElementById('relief-apply-scale');
 
     // Current bounds — initialised from layerDefaults
     let vmin = layerDefaults.relief.vminMetres;
     let vmax = layerDefaults.relief.vmaxMetres;
 
-    // Draw the colorbar once on load and always show it (UI always displays colorbar)
+    // Draw the colorbar once on load; it is always visible thereafter.
     initReliefColorbar(vmin, vmax);
-    showReliefColorbar(true);
 
     async function updateReliefSource() {
         const newUrl = await buildReliefTileUrl(vmin, vmax);
@@ -26,32 +32,6 @@ export async function setupReliefControls(map) {
         if (source && typeof source.setTiles === 'function') {
             source.setTiles([newUrl]);
         }
-    }
-
-    if (reliefToggle) {
-        reliefToggle.addEventListener('change', () => {
-            if (map.getLayer(layerId)) {
-                map.setLayoutProperty(
-                    layerId,
-                    'visibility',
-                    reliefToggle.checked ? 'visible' : 'none'
-                );
-            }
-            // Keep colorbar always visible regardless of layer toggle
-            showReliefColorbar(true);
-        });
-    }
-
-    if (reliefOpacitySlider && reliefOpacityValue) {
-        // Set initial value to 3 decimals
-        reliefOpacityValue.textContent = parseFloat(reliefOpacitySlider.value).toFixed(2);
-        reliefOpacitySlider.addEventListener('input', () => {
-            const value = parseFloat(reliefOpacitySlider.value);
-            reliefOpacityValue.textContent = value.toFixed(2);
-            if (map.getLayer(layerId)) {
-                map.setPaintProperty(layerId, 'raster-opacity', value);
-            }
-        });
     }
 
     function handleRescaleApply() {

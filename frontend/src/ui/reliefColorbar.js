@@ -7,7 +7,6 @@
  * Public API:
  *   initReliefColorbar()          – renders the initial bar and attaches to DOM
  *   updateReliefColorbar(vmin, vmax) – refreshes labels when bounds change
- *   showReliefColorbar(visible)   – shows/hides the overlay
  */
 
 // Cividis palette sampled at 11 stops from matplotlib.
@@ -91,8 +90,3 @@ export function updateReliefColorbar(vmin, vmax) {
     if (labelMax) labelMax.textContent = fmt(vmax);
 }
 
-export function showReliefColorbar(visible) {
-    const container = document.getElementById('relief-colorbar');
-    if (!container) return;
-    container.classList.toggle('hidden', !visible);
-}

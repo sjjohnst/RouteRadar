@@ -7,7 +7,8 @@ import { containsPoint } from './src/aoi.js';
 import { setupReliefControls } from './src/ui/mosaicControls.js';
 import { initClickLocateTool } from './src/tools/clickLocate.js';
 import { initDistanceMeasureTool } from './src/tools/distanceMeasure.js';
-import { setupQuebecPublicLandControls } from './src/ui/quebecPublicLandControls.js';
+import { initLayerControls } from './src/ui/layerControls.js';
+import { layerDefaults } from './src/config/layerDefaults.js';
 import { setupInfoTool } from './src/tools/infoTool.js';
 import { initHelpGuide } from './src/ui/helpGuide.js';
 import { initCollapsiblePanel } from './src/ui/collapsiblePanel.js';
@@ -42,8 +43,13 @@ const searchControl = new MapLibreSearchControl({
 map.addControl(searchControl, 'top-right');
 
 // Wire UI modules
-await setupReliefControls(map);
-setupQuebecPublicLandControls(map);
+setupReliefControls(map);
+initLayerControls(map, {
+	layerId: layerDefaults.quebecPublicLand.layerId,
+	toggleId: 'toggle-quebec-public-land',
+	opacityId: 'quebec-public-land-opacity',
+	opacityValueId: 'quebec-public-land-opacity-value',
+});
 const infoTool = setupInfoTool(map);
 const markerTool = initClickLocateTool(map);
 const measureTool = initDistanceMeasureTool(map);
