@@ -1,5 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import { layerDefaults } from './config/layerDefaults.js';
+import { AOI_BOUNDS } from './aoi.js';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { BACKEND_URL, QUEBEC_IMAGERY_URL, QUEBEC_PUBLIC_LAND_WMS_URL } from './config/api.js';
 
@@ -8,100 +9,6 @@ export const HRDEM_RELIEF_SOURCE_ID = 'hrdem-relief';
 export const HRDEM_RELIEF_LAYER_ID = 'hrdem-relief-layer';
 export const QUEBEC_PUBLIC_LAND_SOURCE_ID = 'quebec-public-land';
 export const QUEBEC_PUBLIC_LAND_LAYER_ID = 'quebec-public-land-layer';
-
-// Load AOI bounds from a GeoJSON file and apply them
-// as maxBounds (and initial view) for versatility.
-export async function applyAoiFromGeojson(
-    map,
-    url = '/aoi/laurentides.geojson',
-    options = { fit: true, padding: 40 }
-) {
-    try {
-        const res = await fetch(url);
-        if (!res.ok) {
-            throw new Error(`Failed to load AOI GeoJSON: ${res.status}`);
-        }
-        const geojson = await res.json();
-        const bbox = computeGeojsonBbox(geojson);
-        if (!bbox) {
-            return;
-        }
-
-        const [minLng, minLat, maxLng, maxLat] = bbox;
-        const bounds = [
-            [minLng, minLat],
-            [maxLng, maxLat]
-        ];
-
-        map.setMaxBounds(bounds);
-
-        if (options.fit) {
-            map.fitBounds(bounds, { padding: options.padding });
-        }
-    } catch (err) {
-        console.error('Error applying AOI from GeoJSON', err);
-    }
-}
-
-function computeGeojsonBbox(geojson) {
-    if (!geojson) return null;
-
-    const coords = [];
-
-    const collect = (g) => {
-        if (!g) return;
-        const type = g.type;
-        const c = g.coordinates;
-
-        switch (type) {
-            case 'Point':
-                coords.push(c);
-                break;
-            case 'MultiPoint':
-            case 'LineString':
-                c.forEach((pt) => coords.push(pt));
-                break;
-            case 'MultiLineString':
-            case 'Polygon':
-                c.forEach((line) => line.forEach((pt) => coords.push(pt)));
-                break;
-            case 'MultiPolygon':
-                c.forEach((poly) =>
-                    poly.forEach((line) => line.forEach((pt) => coords.push(pt)))
-                );
-                break;
-            case 'GeometryCollection':
-                g.geometries.forEach(collect);
-                break;
-            default:
-                break;
-        }
-    };
-
-    if (geojson.type === 'Feature') {
-        collect(geojson.geometry);
-    } else if (geojson.type === 'FeatureCollection') {
-        geojson.features.forEach((f) => collect(f.geometry));
-    } else if (geojson.type && geojson.coordinates) {
-        collect(geojson);
-    }
-
-    if (!coords.length) return null;
-
-    let minLng = coords[0][0];
-    let minLat = coords[0][1];
-    let maxLng = coords[0][0];
-    let maxLat = coords[0][1];
-
-    for (const [lng, lat] of coords) {
-        if (lng < minLng) minLng = lng;
-        if (lng > maxLng) maxLng = lng;
-        if (lat < minLat) minLat = lat;
-        if (lat > maxLat) maxLat = lat;
-    }
-
-    return [minLng, minLat, maxLng, maxLat];
-}
 
 // Build Quebec Public Land (PATP) WMS URL — routed through local proxy to avoid CORS
 export function buildQuebecPublicLandWmsUrl() {    
@@ -226,8 +133,11 @@ export async function initMap() {
                 { id: 'labels-layer', type: 'raster', source: 'map-labels' },
             ]
         },
-        center: [-74.19, 46.03],
-        zoom: 8
+        // Open on the AOI and lock the camera to it. `bounds` supersedes
+        // center/zoom, so the first paint is already framed correctly.
+        bounds: AOI_BOUNDS,
+        fitBoundsOptions: { padding: 40 },
+        maxBounds: AOI_BOUNDS
     });
 
     // Remove the default attribution control if present
