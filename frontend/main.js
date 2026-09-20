@@ -10,6 +10,11 @@ import { initDistanceMeasureTool } from './src/tools/distanceMeasure.js';
 import { setupQuebecPublicLandControls } from './src/ui/quebecPublicLandControls.js';
 import { setupInfoTool } from './src/tools/infoTool.js';
 import { initHelpGuide } from './src/ui/helpGuide.js';
+import { initCollapsiblePanel } from './src/ui/collapsiblePanel.js';
+
+// Above the await: the panel must open on click while the map is still
+// waiting on the backend, not only once initMap() resolves.
+initCollapsiblePanel('nav-layers-tab', 'layers-panel');
 
 // Bootstrap map
 const map = await initMap();
