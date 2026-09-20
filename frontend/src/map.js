@@ -1,82 +1,15 @@
 import maplibregl from 'maplibre-gl';
 import { layerDefaults } from './config/layerDefaults.js';
 import { AOI_BOUNDS } from './aoi.js';
+import { buildReliefTileUrl, publicLandWmsUrl } from './layers/tileUrls.js';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { BACKEND_URL, QUEBEC_IMAGERY_URL, QUEBEC_PUBLIC_LAND_WMS_URL } from './config/api.js';
+import { QUEBEC_IMAGERY_URL } from './config/api.js';
 
 // Shared layer/source identifiers so UI and tools stay in sync
 export const HRDEM_RELIEF_SOURCE_ID = 'hrdem-relief';
 export const HRDEM_RELIEF_LAYER_ID = 'hrdem-relief-layer';
 export const QUEBEC_PUBLIC_LAND_SOURCE_ID = 'quebec-public-land';
 export const QUEBEC_PUBLIC_LAND_LAYER_ID = 'quebec-public-land-layer';
-
-// Build Quebec Public Land (PATP) WMS URL — routed through local proxy to avoid CORS
-export function buildQuebecPublicLandWmsUrl() {    
-    const base = import.meta.env.PROD
-        ? QUEBEC_PUBLIC_LAND_WMS_URL
-        : "/patp-wms";
-    return (
-        base +
-        "?SERVICE=WMS" +
-        "&VERSION=1.3.0" +
-        "&REQUEST=GetMap" +
-        "&LAYERS=0" +
-        "&STYLES=" +
-        "&FORMAT=image/png" +
-        "&TRANSPARENT=TRUE" +
-        "&CRS=EPSG:3857" +
-        "&WIDTH=256&HEIGHT=256" +
-        "&BBOX={bbox-epsg-3857}"
-    );
-}
-// Default relief rendering parameters
-export const DEFAULT_RELIEF_COLORMAP = 'cividis';
-
-/**
- * Fetch scale_factor and add_offset from the backend, then build a
- * TiTiler relief tile URL with rescale expressed in raw DN units.
- *
- * @param {number} vminMetres  - low end of display range in metres
- * @param {number} vmaxMetres  - high end of display range in metres
- * @param {string} colormap    - colormap name passed to TiTiler
- * @returns {Promise<string>}  - tile URL template with {z}/{x}/{y}
- */
-export async function buildReliefTileUrl(
-    vminMetres = layerDefaults.relief.vminMetres,
-    vmaxMetres = layerDefaults.relief.vmaxMetres,
-    colormap   = layerDefaults.relief.colormap,
-) {
-    let scaleFactor = 0.01;  // fallback matches ingestion default
-    let addOffset   = 0.0;
-    try {
-        const res = await fetch(`${BACKEND_URL}/relief/packing`);
-        if (res.ok) {
-            const meta = await res.json();
-            scaleFactor = meta.scale_factor;
-            addOffset   = meta.add_offset;
-        }
-    } catch (err) {
-        console.warn('Could not fetch relief packing metadata, using defaults:', err);
-    }
-
-    // Convert physical metres → packed DN
-    const vminDN = (vminMetres - addOffset) / scaleFactor;
-    const vmaxDN = (vmaxMetres - addOffset) / scaleFactor;
-
-    const params = new URLSearchParams({
-        rescale:      `${vminDN},${vmaxDN}`,
-        colormap_name: colormap,
-    });
-    // Request .webp explicitly. Without this TiTiler auto-selects JPEG 
-    // so relief would be served lossily (RMSE ~6.9, single pixels off by up
-    // to 177/255). Requires that the backend renders WebP losslessly.
-    //
-    // Use the "tiler://" custom protocol so MapLibre routes these tiles through
-    // registerTilerProtocol(), which retries 503s per-tile without touching the
-    // cache of already-loaded tiles (avoids blurry zoom-out fallback on retry).
-    const httpsUrl = `${BACKEND_URL}/mosaicjson/tiles/WebMercatorQuad/{z}/{x}/{y}.webp?${params.toString()}`;
-    return httpsUrl.replace(/^https:\/\//, 'tiler://');
-}
 
 export async function initMap() {
     const quebecImageryUrl = QUEBEC_IMAGERY_URL;
@@ -86,7 +19,7 @@ export async function initMap() {
     const reliefUrl = await buildReliefTileUrl();
 
     // Quebec Public Land WMS URL
-    const quebecPublicLandUrl = buildQuebecPublicLandWmsUrl();
+    const quebecPublicLandUrl = publicLandWmsUrl();
 
     const map = new maplibregl.Map({
         container: 'map',
@@ -155,45 +88,4 @@ export async function initMap() {
     map.addControl(scale, 'bottom-left');
 
     return map;
-}
-
-/**
- * Register a custom protocol "tiler://" that wraps backend tile fetches with
- * exponential-backoff retry on HTTP 503 (Lambda cold-start burst throttle).
- *
- * MapLibre's addProtocol intercepts the fetch for a single tile URL and lets
- * us resolve/reject it ourselves — so only the specific failing tile is retried.
- * All other already-loaded tiles stay in cache untouched, preventing the
- * blurry-fallback problem caused by clearing the entire source cache.
- *
- * Call this once before initMap(), then use buildTilerUrl() to prefix tile
- * template URLs with "tiler://" instead of "https://".
- *
- * @param {typeof import('maplibre-gl')} maplibregl
- */
-export function registerTilerProtocol(maplibregl) {
-    maplibregl.addProtocol('tiler', async (params, abortController) => {
-        // Strip the custom scheme: "tiler://foo.com/..." → "https://foo.com/..."
-        const url = params.url.replace(/^tiler:\/\//, 'https://');
-
-        let delay = 400; // ms — initial back-off
-        const maxRetries = 4;
-
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            if (abortController.signal.aborted) {
-                throw new DOMException('Tile fetch aborted', 'AbortError');
-            }
-            const res = await fetch(url, { signal: abortController.signal });
-            if (res.status !== 503 || attempt === maxRetries) {
-                if (!res.ok) throw new Error(`Tile fetch failed: ${res.status}`);
-                const data = await res.arrayBuffer();
-                return { data };
-            }
-            // 503 — wait with jitter before retrying
-            await new Promise((r) =>
-                setTimeout(r, delay + Math.random() * delay)
-            );
-            delay = Math.min(delay * 2, 3000);
-        }
-    });
 }

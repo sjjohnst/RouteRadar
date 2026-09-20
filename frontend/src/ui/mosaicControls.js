@@ -1,4 +1,5 @@
-import { buildReliefTileUrl, HRDEM_RELIEF_SOURCE_ID, HRDEM_RELIEF_LAYER_ID } from '../map.js';
+import { HRDEM_RELIEF_SOURCE_ID, HRDEM_RELIEF_LAYER_ID } from '../map.js';
+import { buildReliefTileUrl } from '../layers/tileUrls.js';
 import { layerDefaults } from '../config/layerDefaults.js';
 import { initReliefColorbar, updateReliefColorbar, showReliefColorbar } from './reliefColorbar.js';
 

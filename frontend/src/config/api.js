@@ -1,14 +1,16 @@
 // src/config/api.js
 // Central place to configure backend API URL for dev/prod
 
-// Quebec Public Land WMS URL: use env variable in prod, else default
-export const QUEBEC_PUBLIC_LAND_WMS_URL =
-    import.meta.env.VITE_QUEBEC_PUBLIC_LAND_WMS_URL ||
-    "https://servicescarto.mern.gouv.qc.ca/pes/services/Territoire/PATP_prov_WMS/MapServer/WMSServer";
+// Quebec Public Land WMS URL. In dev it goes through the vite proxy declared in
+// vite.config.js, which is what keeps the browser from tripping over CORS.
+export const QUEBEC_PUBLIC_LAND_WMS_URL = import.meta.env.PROD
+    ? import.meta.env.VITE_QUEBEC_PUBLIC_LAND_WMS_URL ||
+      "https://servicescarto.mern.gouv.qc.ca/pes/services/Territoire/PATP_prov_WMS/MapServer/WMSServer"
+    : "/patp-wms";
 
 // Use environment variable if available, else runtime injection (Cloudflare Pages)
 export const BACKEND_URL =
-    window.BACKEND_URL ||
+    globalThis.BACKEND_URL ||
     import.meta.env.VITE_BACKEND_URL;
 
 // Quebec Imagery URL: use env variable in prod, else default
